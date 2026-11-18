@@ -1,0 +1,23 @@
+{
+  "_comment": "What `lead-engine monitor` (hourly) treats as a problem, and what the daily summary and the Results page count as fixed monthly costs (design 7.9 and 7.10). Thresholds are deliberately below the hard limits in caps.json, so a person hears before the engine pauses itself.",
+  "version": "monitor-v1",
+  "jobs": {"dead_in_24h_warn": 1, "overdue_minutes_critical": 60},
+  "queues": {"approval_oldest_hours_warn": 48, "inbox_oldest_hours_warn": 24, "calls_oldest_hours_warn": 24, "export_oldest_hours_warn": 48},
+  "data": {"_comment": "MCA publishes the month's incorporation file in the first days of the next month; after this day (IST) its absence is an alert.", "mca_file_due_day_ist": 6},
+  "email": {"bounce_pct_warn": 1.5, "complaint_pct_warn": 0.05},
+  "caps": {"used_pct_warn": 80},
+  "runs": {"_comment": "Hours after which a source's last run counts as stale: the nightly batch (which includes the need engine) daily, the portals weekly (ops/SCHEDULE.md). Startup India is not scheduled, so it is not watched.", "stale_hours": {"nightly": 36, "kb": 36, "startinup": 200, "upsm": 200, "incubator": 200}},
+  "llm": {"failed_calls_24h_warn": 5},
+  "backups": {"_comment": "Checked only where the backup folder exists (the server): the newest full backup (nightly) and critical one (hourly).", "full_stale_hours": 30, "critical_stale_hours": 3},
+  "whatsapp": {"quality_warn": ["YELLOW", "MEDIUM"], "quality_critical": ["RED", "LOW"], "status_critical": ["PAUSED", "DISABLED", "REJECTED"]},
+  "summary": {
+    "_comment": "The daily summary goes to SUMMARY_TO (comma-separated team addresses) at 08:00 IST, from mailbox-1 when OUTREACH_TRANSPORT=smtp, otherwise into the outbox.",
+    "hour_ist": 8
+  },
+  "fixed_costs_inr_per_month": [
+    {"item": "Outreach domain (about ₹1,000 a year)", "inr": 84},
+    {"item": "Two Zoho Mail Lite mailboxes", "inr": 166},
+    {"item": "S3 storage for raw pages and exports", "inr": 50},
+    {"item": "Server (the existing server; ₹900 if a t4g.small is needed)", "inr": 0}
+  ]
+}

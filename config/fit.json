@@ -1,0 +1,26 @@
+{
+  "version": "fit-v2",
+  "_comment": "Rules-based fit score, 0-100 (design 7.4). Every point carries its reason, so a reviewer can see why a company ranks where it does. Once 300-500 outcomes exist, a calibrated model replaces these weights; an AI model's own 'score out of 100' is never used.",
+  "_icp_assumption": "Working assumption, not yet a founders' decision: SolutionAI's best-fit customer is a newly incorporated, technology- or innovation-led startup (the kind that can get DPIIT and StartinUP recognition), so the Atlas innovation signal carries most of the weight. Within one monthly cohort recency is the same for everyone and few companies are on a portal yet, so the ranking is mostly that signal, which rewards software activity codes (NIC 62/63/72) and words such as 'tech', 'solutions' or 'systems' in the name: 73% of the October 2026 shortlist was NIC 62, against 12% of the cohort. If the offer is compliance and scheme help for every new company, lower innovation_weight or use theme_points. The founders' decision of 1 Nov 2026 keeps this assumption for the score and caps any one theme's share of the shortlist instead (shortlist_theme_cap_pct).",
+  "_deadline_comment": "fit-v2: counts distinct due dates of firm obligations only (the first board meeting and the first auditor share one date and count once; rules with a condition, such as DPT-3, never count). Dates that passed in the last 60 days count as much as dates in the next 60: a company whose first deadlines have just passed needs help at least as much, and counting only dates ahead favoured companies incorporated late in the month, which held 59% of the October shortlist against 39% of the cohort. The two windows are equal so that, whichever day of the following month the shortlist is made, a company incorporated on the 2nd and one incorporated on the 29th get the same points; within one cohort the component is therefore nearly constant, and it mainly separates companies whose first-year dates are around now from older ones.",
+  "_tie_break_comment": "Equal scores are ordered by a keyed hash of the company id (the holdout salt with the label 'shortlist-tiebreak'), not by incorporation date or CIN, which sorted late-month companies and low NIC codes first.",
+  "_theme_cap_comment": "Decided 1 Nov 2026 (Gourav): no sector theme takes more than 40% of the month's places to contact. Until outcomes exist, a shortlist spread over many sectors shows where replies and customers really come from; one that is three quarters SaaS/IT (the October list) can only teach us about SaaS/IT. The innovation signal still orders companies within each theme. On the September cohort, the cap takes SaaS/IT from 76% to 40% of the list (still three times its 13% share of the cohort), widens it from 10 themes to 17, and lowers the fit at the cut-off from 51 to 46. Null switches the cap off.",
+  "shortlist_theme_cap_pct": 40,
+  "innovation_weight": 0.35,
+  "recency_points": [[60, 20], [120, 15], [180, 10], [365, 5]],
+  "deadline_window_days": 60,
+  "points_per_near_deadline": 5,
+  "passed_deadline_window_days": 60,
+  "points_per_passed_deadline": 5,
+  "max_deadline_points": 10,
+  "startup_portal_points": 10,
+  "incubator_points": 10,
+  "domain_points": 5,
+  "type_points": {"PTC": 0, "OPC": 0, "LLP": 0, "PLC": -5, "NPL": -10},
+  "theme_points": {},
+  "eligibility": {
+    "type_codes": ["PTC", "OPC", "PLC", "NPL", "LLP"],
+    "max_age_years": 10,
+    "exclude_listed": true
+  }
+}

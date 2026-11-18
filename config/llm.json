@@ -1,0 +1,21 @@
+{
+  "_comment": "How the engine uses the platform's LLM gateway (design 7.5 and 8). Every call is logged in llm_calls with its tokens and cost, and the monthly spend is capped by caps.json monthly.llm_spend_inr, reserved before the call. Model names are aliases: the gateway decides which model 'small' and 'strong' mean (LLM_MODEL_SMALL / LLM_MODEL_STRONG override them). Prices are per million tokens in INR and must be set from the gateway's price list before the first live call; until then the cap is enforced on these conservative estimates.",
+  "version": "llm-v1",
+  "timeout_ms": 30000,
+  "models": {
+    "small": {"name": "small", "inr_per_mtok_in": 30, "inr_per_mtok_out": 120},
+    "strong": {"name": "strong", "inr_per_mtok_in": 150, "inr_per_mtok_out": 600}
+  },
+  "tasks": {
+    "draft": {"model": "strong", "prompt_version": "draft-v1", "max_output_tokens": 900, "temperature": 0.3},
+    "quality_check": {"model": "small", "prompt_version": "qc-v1", "max_output_tokens": 300, "temperature": 0},
+    "match_check": {
+   "model": "small",
+   "prompt_version": "match-v1",
+   "max_output_tokens": 300,
+   "temperature": 0
+  },
+  "reply_classify": {"model": "small", "prompt_version": "reply-v1", "max_output_tokens": 120, "temperature": 0}
+  },
+  "per_lead_token_budget": 12000
+}

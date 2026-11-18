@@ -1,0 +1,484 @@
+openapi: 3.1.0
+info:
+  title: SolutionAI Lead Engine and platform contracts
+  version: "1.0.0"
+  summary: The endpoints between the lead engine and the SolutionAI platform, in both directions.
+  description: |
+    The machine-readable twin of docs/PLATFORM_CONTRACTS.md. Two groups:
+
+    * **Platform provides, engine calls** (tag `platform`): scheme verdicts, the pre-filled sign-up,
+      notifications. Each takes the engine's key, `Authorization: Bearer {PLATFORM_API_KEY}` (the rules
+      engine its own `RULES_ENGINE_KEY`). Each has a fallback in the engine, so none blocks a launch.
+    * **Engine provides, platform calls** (tag `engine`): sign-up, service-request and payment events,
+      the MCP tools for Mr. AI, and the read API behind the Admin pages.
+
+    Only company-level facts, and what a founder typed on the claim form, ever cross. Test a platform
+    endpoint against this file with `node services/src/cli.js platform:check`; test the engine's events
+    endpoint by sending events whose `id` starts with `test_`, which are checked and answered but not
+    recorded.
+servers:
+  - url: https://{adminHost}
+    description: the engine's Admin host (engine endpoints)
+    variables:
+      adminHost: { default: leads-admin.solutionai.in }
+tags:
+  - name: platform
+    description: provided by the platform, called by the engine
+  - name: engine
+    description: provided by the engine, called by the platform
+paths:
+  /v1/verdicts:
+    post:
+      tags: [platform]
+      summary: Scheme verdicts for one company (RULES_ENGINE_URL + /v1/verdicts)
+      description: |
+        Called once per company per night. An unknown fact must never produce `not_eligible`; it
+        produces `check_required` with the fact under `missing`. A `closed` verdict carries `valid_until`.
+        Timeout 10 s; after a few failures in a row the engine stops calling for the night and uses
+        its provisional rules. A batch endpoint is welcome.
+      security: [{ rulesKey: [] }]
+      servers: [{ url: "{RULES_ENGINE_URL}", variables: { RULES_ENGINE_URL: { default: https://rules.solutionai.in } } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [company]
+              properties:
+                company: { $ref: "#/components/schemas/VerdictFacts" }
+      responses:
+        "200":
+          description: the verdicts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rules_version, verdicts]
+                properties:
+                  rules_version: { type: string, examples: ["2026-11-01"] }
+                  verdicts:
+                    type: array
+                    items: { $ref: "#/components/schemas/Verdict" }
+  /onboarding:
+    post:
+      tags: [platform]
+      summary: Pre-filled sign-up after a claim (PLATFORM_ONBOARDING_URL)
+      description: |
+        Creates a business profile from the company record and returns a sign-up link for it. If the
+        endpoint is unset, slow (10 s) or answers anything else, the founder goes to the plain sign-up.
+        A request with the header `X-Lead-Engine-Test: 1` comes from `platform:check`: answer it
+        normally and then discard the profile.
+      security: [{ platformKey: [] }]
+      servers: [{ url: "{PLATFORM_ONBOARDING_URL}", variables: { PLATFORM_ONBOARDING_URL: { default: https://api.solutionai.in/lead-engine/onboarding } } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OnboardingRequest" }
+      responses:
+        "200":
+          description: the sign-up link
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signup_url]
+                properties:
+                  signup_url: { type: string, format: uri, pattern: "^https://", description: must be https }
+  /notify:
+    post:
+      tags: [platform]
+      summary: A reminder or a scheme alert for a signed-up founder (PLATFORM_NOTIFY_URL)
+      description: |
+        Sent through the platform's own mail (ZeptoMail) and in-app notifications, never the engine's
+        outreach mailboxes. Only for founders who agreed to it on the claim form.
+      security: [{ platformKey: [] }]
+      servers: [{ url: "{PLATFORM_NOTIFY_URL}", variables: { PLATFORM_NOTIFY_URL: { default: https://api.solutionai.in/lead-engine/notify } } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/DeadlineReminder"
+                - $ref: "#/components/schemas/SchemeAlert"
+              discriminator: { propertyName: type }
+      responses:
+        "200":
+          description: accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, description: "the platform's notification id" }
+  /api/events:
+    post:
+      tags: [engine]
+      summary: Sign-ups, service requests and payments, so the engine can attribute them
+      description: |
+        Sign the raw body: `X-Signature: sha256=<hex HMAC-SHA256 of the body, keyed with
+        PLATFORM_EVENTS_SECRET>`. A resent event (same `id`) is recorded once. Events whose `id` starts
+        with `test_` are checked and answered but not recorded. After ten wrong signatures in a minute
+        from one address the engine answers 429 for a minute.
+      parameters:
+        - name: X-Signature
+          in: header
+          required: true
+          schema: { type: string, pattern: "^sha256=[0-9a-f]{64}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [events]
+                  properties:
+                    events: { type: array, maxItems: 100, items: { $ref: "#/components/schemas/Event" } }
+                - $ref: "#/components/schemas/Event"
+      responses:
+        "200": { description: "recorded (each event's result inside)", content: { application/json: { schema: { $ref: "#/components/schemas/EventsResult" } } } }
+        "400": { description: "not JSON, or neither one event nor { events }" }
+        "401": { description: bad or missing signature }
+        "413": { description: more than 100 events }
+        "422": { description: every event in the request was invalid, content: { application/json: { schema: { $ref: "#/components/schemas/EventsResult" } } } }
+        "429": { description: too many wrong signatures from this address }
+        "503": { description: PLATFORM_EVENTS_SECRET is not configured on the engine }
+  /mcp:
+    post:
+      tags: [engine]
+      summary: The engine's MCP tools for Mr. AI (JSON-RPC 2.0, streamable HTTP without a stream)
+      description: |
+        Methods: initialize, ping, tools/list, tools/call. Tools: search_leads, company_profile,
+        deadline_calendar; read-only and company-level. Protocol versions 2025-06-18, 2025-03-26,
+        2024-11-05. A notification gets 202 with no body.
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jsonrpc, method]
+              properties:
+                jsonrpc: { const: "2.0" }
+                id: { type: [string, integer] }
+                method: { type: string, examples: [tools/call] }
+                params: { type: object }
+      responses:
+        "200": { description: the JSON-RPC answer }
+        "202": { description: a notification was received }
+        "403": { description: "a browser session instead of a bearer token, or another origin" }
+  /api/pipeline:
+    get:
+      tags: [engine]
+      summary: Funnel, cohorts, sectors, districts, the shortlist, runs, caps (the Pipeline page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters: [{ name: month, in: query, schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }]
+      responses: { "200": { description: JSON } }
+  /api/results:
+    get:
+      tags: [engine]
+      summary: The month's shortlist against its holdout, the month's costs, channel health (the Results page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters: [{ name: month, in: query, schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }]
+      responses: { "200": { description: JSON } }
+  /api/inbox:
+    get:
+      tags: [engine]
+      summary: Replies waiting for a person, recent ones, and mail that matched nothing (the Inbox page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+  /api/calls:
+    get:
+      tags: [engine]
+      summary: Call backs a person must make or follow up, and recent calls (the Calls page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+  /api/audit:
+    get:
+      tags: [engine]
+      summary: The audit log, newest first, 100 a page (admin role only; reading it is itself logged)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters:
+        - { name: action, in: query, schema: { type: string }, description: "one of the audit actions, e.g. sign_in, view_personal, export" }
+        - { name: actor, in: query, schema: { type: string }, description: the start of a person's email }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 1000 } }
+      responses:
+        "200": { description: JSON }
+        "400": { description: a filter that is not valid }
+        "403": { description: admins only }
+  /api/labels:
+    get:
+      tags: [engine]
+      summary: Pairs to label to measure the matcher (held-out links first), with the precision so far
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+    post:
+      tags: [engine]
+      summary: A person's label on one pair (reviewer role or higher; logged)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entity, company, decision]
+              properties:
+                entity: { type: string, pattern: "^UPLC_[0-9]{8}$" }
+                company: { type: string, description: CIN or LLPIN }
+                decision: { enum: [same, different, unsure] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: saved }
+        "400": { description: "not a pair the matcher proposed, or a bad decision" }
+        "403": { description: reviewers only }
+  /api/exports:
+    get:
+      tags: [engine]
+      summary: Bulk export requests and their status (design 7.11)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+    post:
+      tags: [engine]
+      summary: Ask for a company-level CSV; an admin who is not the person asking must approve it
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 500 }
+                stage: { enum: [discovered, shortlisted, contacted, engaged, claimed, customer, closed] }
+                cohort: { type: string, pattern: "^\\d{4}-\\d{2}$" }
+                shortlist_month: { type: string, pattern: "^\\d{4}-\\d{2}$" }
+                district: { type: string, maxLength: 60 }
+                max_rows: { type: integer, minimum: 1, maximum: 20000, default: 5000 }
+                include_contacts: { type: boolean, description: "company addresses only, never a person's or one that opted out" }
+      responses:
+        "201": { description: the request, waiting for an admin }
+        "400": { description: a bad filter or a missing reason }
+        "403": { description: reviewers and admins only }
+  /api/exports/{id}:
+    post:
+      tags: [engine]
+      summary: Approve or reject an export (admin role; never the person who asked)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, pattern: "^exp_[0-9a-z]{12}$" } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { enum: [approve, reject] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: the decided request }
+        "403": { description: "not an admin, or the admin who asked" }
+        "409": { description: already decided or expired }
+  /api/exports/{id}/download:
+    get:
+      tags: [engine]
+      summary: The CSV, for the person who asked, for 24 hours after approval; every download is logged
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, pattern: "^exp_[0-9a-z]{12}$" } }]
+      responses:
+        "200": { description: text/csv }
+        "403": { description: not the person who asked }
+        "409": { description: not approved }
+        "410": { description: the 24 hours are over }
+  /api/mca:
+    get:
+      tags: [engine]
+      summary: MCA monthly files waiting, failed (with the reason) and loaded
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+    post:
+      tags: [engine]
+      summary: Upload the month's MCA workbook (admin role, with a token); the nightly run loads it
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters: [{ name: X-File-Name, in: header, required: true, schema: { type: string, pattern: "\\.xlsx$" } }]
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: { schema: { type: string, format: binary, maxLength: 31457280 } }
+      responses:
+        "201": { description: "saved to the inbox, with its file name, size and sha256" }
+        "400": { description: not an .xlsx workbook }
+        "409": { description: the same file is already waiting or loaded }
+        "413": { description: larger than 30 MB }
+components:
+  securitySchemes:
+    platformKey: { type: http, scheme: bearer, description: "PLATFORM_API_KEY, the engine's key on the platform" }
+    rulesKey: { type: http, scheme: bearer, description: RULES_ENGINE_KEY }
+    adminToken: { type: http, scheme: bearer, description: "an Admin access token: lead-engine admin:user <email> <role>" }
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: |
+        The portal's service token (lead-engine admin:service <name> <max-role>). Every call also sends
+        X-Acting-User (the person's email; required) and X-Acting-Role (viewer, reviewer or admin; default
+        viewer; never above the token's max role). The audit log records the person, not the portal.
+    platformProxy:
+      type: apiKey
+      in: header
+      name: X-Platform-Signature
+      description: |
+        The platform's proxy signs who the person is on every request (PLATFORM_SSO_SECRET). It sends
+        X-Platform-User (email), X-Platform-Role, X-Platform-Time (Unix seconds, within 2 minutes),
+        X-Platform-Body-SHA256 (hex SHA-256 of the body as forwarded; of nothing for a GET) and
+        X-Platform-Signature = "sha256=" + hex HMAC-SHA256 of the seven lines "v2", time, METHOD,
+        request target (path and query as sent), user, role, body hash, joined by newlines.
+        lead-engine admin:platform-headers prints a worked example as curl.
+  schemas:
+    VerdictFacts:
+      type: object
+      required: [kind, state, incorporated, as_of]
+      properties:
+        kind: { enum: [company, llp] }
+        type_code: { type: string, examples: [PTC, OPC, PLC, NPL, LLP] }
+        state: { const: UP }
+        incorporated: { type: string, format: date }
+        as_of: { type: string, format: date }
+        district: { type: [string, "null"] }
+        sector: { type: [string, "null"], description: "the engine's sector theme" }
+        stage: { type: [string, "null"], description: from the startup portals }
+        startinup_listed: { type: boolean }
+        incubated: { type: boolean }
+        dpiit_recognised: { type: [boolean, "null"], description: null means unknown }
+    Verdict:
+      type: object
+      required: [scheme_id, name, verdict]
+      properties:
+        scheme_id: { type: string, examples: [dpiit_recognition] }
+        name: { type: string }
+        verdict: { enum: [eligible, check_required, not_eligible, closed, held] }
+        reason: { type: string }
+        missing: { type: array, items: { type: string } }
+        source_url: { type: [string, "null"], format: uri }
+        valid_until: { type: [string, "null"], format: date, description: required with closed }
+    OnboardingRequest:
+      type: object
+      required: [company, contact, consents, source]
+      properties:
+        company:
+          type: object
+          required: [id, name, state]
+          properties:
+            id: { type: string, description: CIN or LLPIN }
+            name: { type: string }
+            kind: { enum: [company, llp] }
+            legal_form: { type: [string, "null"] }
+            incorporated: { type: [string, "null"], format: date }
+            district: { type: [string, "null"] }
+            state: { const: UP }
+        contact:
+          type: object
+          required: [name, role, email]
+          properties:
+            name: { type: string }
+            role: { enum: [Director, Founder, Partner, Employee, Other] }
+            email: { type: string, format: email }
+            whatsapp: { type: [string, "null"], description: "E.164 (+91...), or null" }
+        consents:
+          type: array
+          description: exactly what the founder ticked, with the words shown; the engine keeps the authoritative record
+          items:
+            type: object
+            required: [channel, purpose, wording, wording_version]
+            properties:
+              channel: { enum: [email, whatsapp, voice] }
+              purpose: { enum: [deadline_reminders, scheme_alerts, callback] }
+              wording: { type: string }
+              wording_version: { type: string, examples: [claim-v2] }
+        source:
+          type: object
+          properties:
+            engine: { const: lead-engine }
+            claimed_at: { type: string, format: date-time }
+            test: { type: boolean, description: "true only from platform:check" }
+    CompanyRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    DeadlineReminder:
+      type: object
+      required: [channel, to, type, company, title, deadline, link]
+      properties:
+        channel: { const: email }
+        to: { type: string, format: email }
+        type: { const: deadline_reminder }
+        company: { $ref: "#/components/schemas/CompanyRef" }
+        title: { type: string }
+        deadline:
+          type: object
+          required: [id, title, due]
+          properties:
+            id: { type: string }
+            title: { type: string }
+            form: { type: [string, "null"] }
+            due: { type: string, format: date }
+            law: { type: [string, "null"] }
+        link: { type: string, format: uri, description: "the company's page" }
+    SchemeAlert:
+      type: object
+      required: [channel, to, type, company, title, scheme, link]
+      properties:
+        channel: { const: email }
+        to: { type: string, format: email }
+        type: { const: scheme_alert }
+        company: { $ref: "#/components/schemas/CompanyRef" }
+        title: { type: string }
+        scheme:
+          type: object
+          required: [id, name, verdict]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            verdict: { enum: [eligible, check_required] }
+            benefit: { type: [string, "null"] }
+            to_check: { type: array, items: { type: string } }
+            source_url: { type: [string, "null"], format: uri }
+        link: { type: string, format: uri }
+    Event:
+      type: object
+      required: [id, type, at, company_id]
+      properties:
+        id: { type: string, pattern: "^[A-Za-z0-9_.:-]{1,100}$", description: "unique; test_... is checked but not recorded" }
+        type: { enum: [signed_up, service_request, paid] }
+        at: { type: string, format: date-time, description: "when it happened, with its time zone" }
+        company_id: { type: string, description: CIN or LLPIN }
+        amount_paise: { type: integer, minimum: 0, maximum: 1000000000, description: payments only }
+        currency: { const: INR }
+        service: { type: string, maxLength: 80 }
+        reference: { type: string, maxLength: 100, description: e.g. the Razorpay payment id }
+      additionalProperties: false
+    EventsResult:
+      type: object
+      properties:
+        received: { type: integer }
+        failed: { type: integer }
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: [string, "null"] }
+              ok: { type: boolean }
+              error: { type: string }
+              duplicate: { type: boolean }
+              known_company: { type: boolean }
+              test: { type: boolean }

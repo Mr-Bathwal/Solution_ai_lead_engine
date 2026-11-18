@@ -1,0 +1,17 @@
+{
+  "agent": { "run_as_user": "root" },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          { "file_path": "/var/log/leadengine/monitor.log", "log_group_name": "/leadengine/monitor", "log_stream_name": "{instance_id}", "retention_in_days": 90 },
+          { "file_path": "/var/log/leadengine/worker.log", "log_group_name": "/leadengine/worker", "log_stream_name": "{instance_id}", "retention_in_days": 30 },
+          { "file_path": "/var/log/leadengine/pages.log", "log_group_name": "/leadengine/pages", "log_stream_name": "{instance_id}", "retention_in_days": 30 },
+          { "file_path": "/var/log/leadengine/admin.log", "log_group_name": "/leadengine/admin", "log_stream_name": "{instance_id}", "retention_in_days": 30 },
+          { "file_path": "/var/log/leadengine/nightly.log", "log_group_name": "/leadengine/nightly", "log_stream_name": "{instance_id}", "retention_in_days": 30 },
+          { "file_path": "/var/log/leadengine/inbox.log", "log_group_name": "/leadengine/inbox", "log_stream_name": "{instance_id}", "retention_in_days": 30 }
+        ]
+      }
+    }
+  }
+}

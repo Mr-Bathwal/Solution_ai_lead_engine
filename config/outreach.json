@@ -1,0 +1,93 @@
+{
+  "_comment": "Outreach settings (design 7.5-7.7). Sending caps, warm-up and the send window are in caps.json; who the mailboxes are (addresses, SMTP passwords) is in the environment, never here. Changing anything in this file changes what founders receive, so it goes through review like code.",
+  "version": "outreach-v1",
+  "org": {"name": "SolutionAI", "legal_name": "SolutionAI Private Limited", "website": "https://solutionai.in"},
+  "languages": ["en", "hi"],
+  "default_language": "en",
+  "kinds": ["first_touch", "follow_up", "new_need"],
+  "approval": {
+    "_comment": "Design 7.5: every draft is approved by a person until the quality check agrees with the reviewers consistently; then a sample. mode 'sample' takes effect only with at least evidence.min_decisions reviewer decisions in evidence.window_days at evidence.min_agreement_pct agreement, and once a person records switched_on_by and switched_on_on. sample_pct of the drafts that pass the check still go to a person. See services/src/outreach/sampling.js and `lead-engine approval:agreement`.",
+    "mode": "all",
+    "sample_pct": 20,
+    "sample_kinds": ["first_touch", "follow_up", "new_need"],
+    "evidence": {"min_decisions": 100, "min_agreement_pct": 95, "window_days": 60},
+    "switched_on_by": "",
+    "switched_on_on": ""
+  },
+  "campaigns": [
+    {"_comment": "Campus and other campaigns (services/src/public/campaigns.js): the landing page is PUBLIC_BASE_URL/j/<code>; visits, claims, sign-ups and payments from it are counted on Results. code: lower-case letters, digits and -; from and to are IST days (both optional); active false stops it. This one is an example, switched off.",
+     "code": "example-campus", "name": "Example campus campaign", "channel": "campus", "active": false, "from": "2026-11-20", "to": "2027-03-31"}
+  ],
+  "verification": {
+    "_comment": "Checking an address before the first email (services/src/outreach/verify.js). use: results that may be emailed; hold: kept out of the first wave (accept-all domains, design 7.3) and written to in a second wave second_wave_after_days later, once the first wave's bounces are known; every other result is never used for that address (a different address found later, such as one on the company's website, is checked afresh). A verification service is optional: EMAIL_VERIFY_PROVIDER (zerobounce or millionverifier) and EMAIL_VERIFY_API_KEY; without one, addresses that pass the free checks are 'unverified' and used. A person's address (a founder's own Gmail, say) only ever gets the free checks: it is never sent to the service.",
+    "use": ["deliverable", "unknown", "unverified"],
+    "hold": ["accept_all"],
+    "cache_days": 30,
+    "second_wave_after_days": 14
+  },
+  "message_expiry_days": 14,
+  "send_days_ist": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+  "evidence": {
+    "_comment": "What a message may mention. Only firm obligations (never conditional or ongoing ones), upcoming within deadline_window_days or due within the last past_window_days, and schemes whose verdict is eligible or check_required.",
+    "deadline_window_days": 120,
+    "past_window_days": 45,
+    "max_deadlines": 3,
+    "max_schemes": 2
+  },
+  "recipient": {
+    "_comment": "Who a first email may go to. A company's registered email is published under the Companies Act (MCA master data); an address on the company's own website is published by the company. Anything else needs consent.",
+    "legal_bases": ["published_under_law", "published_by_company", "consent"],
+    "use_website_email": false,
+    "_use_website_email": "When on, a company with no registered email, or one whose registered email is a person's, is written to at the role address it publishes on its own website (found by `leadengine enrich websites`), and the email's last paragraph says so instead of naming the MCA register. Off until the lawyer has approved that wording (legal review pack, section 2)."
+  },
+  "drafting": {
+    "_comment": "The AI drafter is used only when the LLM gateway is configured; otherwise, and whenever an AI draft fails the quality check twice, the reviewed templates in services/src/outreach/templates.js write the message.",
+    "max_ai_attempts": 2
+  },
+  "quality": {
+    "subject_max_chars": 90,
+    "_body_max_words_comment": "Per kind, and per language where Hindi needs more words for the same text (postpositions are words of their own). Raised in Phase 4 from 230 for a first email: a full evidence pack (three dates, two schemes) makes the reviewed template 237 words in English and 260 in Hindi, which the old limit sent to the failed pile.",
+    "body_max_words": {"first_touch": {"en": 250, "hi": 285}, "follow_up": {"en": 120, "hi": 140}, "new_need": {"en": 170, "hi": 195}},
+    "max_exclamation_marks": 1,
+    "banned_phrases": [
+      "guarantee", "guaranteed", "100%", "risk-free", "act now", "last chance", "urgent", "immediately",
+      "final notice", "legal action", "you will be fined", "penalty notice", "government approved",
+      "approved by the government", "on behalf of mca", "on behalf of the government", "official notice",
+      "ministry of corporate affairs has asked", "free money", "click here", "limited time",
+      "गारंटी", "अंतिम चेतावनी", "कानूनी कार्रवाई", "तुरंत"
+    ]
+  },
+  "page": {
+    "_comment": "The company page and the unsubscribe link live behind unguessable links that expire.",
+    "token_days": 120
+  },
+  "claim": {
+    "_comment": "claim-v2 (Phase 4) adds the call-back consent and says the number may be used for a call.",
+    "wording_version": "claim-v2",
+    "privacy_notice_version": "notice-v1",
+    "hindi": {"_comment": "The Hindi company page and claim form (services/src/public/i18n.js). A draft translation: served to founders only once a lawyer has reviewed it and approved_by and approved_on are filled in. Until then only a preview: add ?lang=hi&preview=1 to a company page link. Consents given in Hindi are recorded with this wording version.", "wording_version": "claim-v2-hi", "approved_by": "", "approved_on": ""}
+  },
+  "reminders": {
+    "_comment": "For founders who claimed their page and agreed to reminders: a reminder this many days before each confirmed, firm deadline, at most max_per_30_days per channel.",
+    "days_before": [7, 1],
+    "max_per_30_days": 6,
+    "scheme_alerts_per_30_days": 2
+  },
+  "inbound": {
+    "_comment": "Reading the outreach mailboxes (services/src/inbound/). Read-only (IMAP EXAMINE and BODY.PEEK). On the first run a mailbox is read from start_date or first_read_days ago, whichever is later; after that, from the last message read. A reply's label acts by itself only for an opt-out or a wrong address, at auto_act_confidence or above; the AI is asked only when the rules are below ai_below. Replies and their text are kept retention_days, then removed.",
+    "folder": "INBOX",
+    "start_date": "2026-11-18",
+    "first_read_days": 30,
+    "max_per_run": 200,
+    "max_bytes": 262144,
+    "auto_act_confidence": 0.8,
+    "ai_below": 0.8,
+    "retention_days": 400
+  },
+  "whatsapp": {
+    "_comment": "Utility templates only, to numbers that opted in on the company page. Not before 09:00 or after 21:00 IST.",
+    "window_ist": ["09:00", "21:00"],
+    "utility_price_paise": 15,
+    "graph_api_version": "v21.0"
+  }
+}

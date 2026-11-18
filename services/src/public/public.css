@@ -1,0 +1,77 @@
+/* The company page, claim form and unsubscribe page: what a founder sees. Plain, readable, fast on a
+   phone, in light and dark. No JavaScript, no web fonts, no trackers. */
+:root {
+  --bg: #fbfaff; --card: #ffffff; --ink: #1d1a33; --muted: #5d5878; --line: #e6e2f3; --accent: #5b4bd6;
+  --accent-ink: #ffffff; --soft: #f1eefc; --good: #17754d; --good-bg: #e8f6ef; --warn: #8a5a00; --warn-bg: #fff4dc;
+  --focus: #5b4bd6;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12111c; --card: #1b1a29; --ink: #ecebf5; --muted: #aaa6c3; --line: #2e2c42; --accent: #a99cff;
+    --accent-ink: #16142a; --soft: #24223a; --good: #7fd8ac; --good-bg: #173326; --warn: #f2c46b; --warn-bg: #33280f;
+    --focus: #a99cff;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", "Nirmala UI", sans-serif; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; }
+.skip:focus { left: 16px; top: 8px; background: var(--card); padding: 8px 12px; border-radius: 8px; z-index: 2; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+header.top { border-bottom: 1px solid var(--line); background: var(--card); }
+header.top .wrap { display: flex; align-items: center; gap: 10px; min-height: 56px; }
+.brand { font-weight: 650; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(135deg, #7c6cf0, #e58fb6); }
+/* .wrap sets the side padding; main and the footer keep their own top and bottom (a class beats a type selector) */
+main.wrap { padding-top: 32px; padding-bottom: 48px; }
+h1 { font-size: 1.75rem; line-height: 1.25; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 0.875rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin: 18px 0; }
+.dates { list-style: none; margin: 0; padding: 0; }
+.dates li { padding: 12px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+.dates li:first-child { border-top: 0; padding-top: 0; }
+.dates .when { font-weight: 600; white-space: nowrap; text-align: right; }
+.dates .when.past { color: var(--muted); font-weight: 500; }
+.tag { display: inline-block; font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+.tag.good { background: var(--good-bg); color: var(--good); }
+.scheme { padding: 12px 0; border-top: 1px solid var(--line); }
+.scheme:first-of-type { border-top: 0; padding-top: 0; }
+.scheme p { margin: 6px 0; }
+.notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 12px 14px; }
+.button, button { display: inline-block; font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 12px 18px; text-decoration: none; cursor: pointer; }
+button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+form.stack { display: grid; gap: 14px; }
+label { display: grid; gap: 4px; font-weight: 600; }
+label .hint { font-weight: 400; color: var(--muted); font-size: 0.875rem; }
+input[type=text], input[type=email], input[type=tel], select { font: inherit; padding: 10px 12px; border: 1px solid var(--muted); border-radius: 10px; background: var(--card); color: var(--ink); width: 100%; }
+fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0; }
+legend { font-weight: 600; padding: 0 6px; }
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; font-weight: 400; padding: 6px 0; }
+.check input { width: 20px; height: 20px; margin-top: 3px; }
+.error { color: #b3261e; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .error { color: #ffb4ab; } }
+footer { border-top: 1px solid var(--line); }
+footer.wrap { padding-top: 18px; padding-bottom: 32px; }
+@media (max-width: 480px) {
+  h1 { font-size: 1.45rem; }
+  .dates li { grid-template-columns: 1fr; }
+  .dates .when { text-align: left; }
+}
+@media (forced-colors: active) { .button, button { border: 1px solid ButtonText; } .tag { border: 1px solid CanvasText; } }
+@media print { header.top, footer, .button, form { display: none; } .card { border: 0; padding: 0; } }
+
+/* the same page in the other language, and the draft Hindi preview */
+header.top .lang { margin-left: auto; font-size: 0.95rem; }
+.draft { margin: 0; padding: 10px 16px; background: var(--warn-bg); color: var(--warn); border-bottom: 1px solid var(--line); font-size: 0.95rem; text-align: center; }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* a campaign landing page's results */
+ul.found { list-style: none; margin: 0; padding: 0; }
+ul.found li + li { border-top: 1px solid var(--line); }
+ul.found form { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; flex-wrap: wrap; }

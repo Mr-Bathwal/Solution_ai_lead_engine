@@ -1,0 +1,32 @@
+# /etc/cron.d/leadengine: the lead engine's schedule (ops/SCHEDULE.md explains each line). Times are IST.
+CRON_TZ=Asia/Kolkata
+TZ=Asia/Kolkata
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+APP=/opt/ai-lead-engine
+LOGS=/var/log/leadengine
+
+# data: weekly portals, monthly full re-read, the nightly batch, the exports
+30 1 * * 1   leadengine cd $APP/ingest && for s in "startinup --details new" upsm incubators; do .venv/bin/python -m leadengine ingest $s; done >> $LOGS/weekly.log 2>&1
+30 0 1 * *   leadengine cd $APP/ingest && .venv/bin/python -m leadengine ingest startinup --details all >> $LOGS/monthly.log 2>&1
+0 5 * * *    leadengine cd $APP/ingest && .venv/bin/python -m leadengine nightly >> $LOGS/nightly.log 2>&1
+30 5 * * *   leadengine cd $APP/ingest && .venv/bin/python -m leadengine export parquet >> $LOGS/export.log 2>&1 && S3="$(grep -E '^EXPORT_S3_URI=' $APP/.env | cut -d= -f2-)" && [ -n "$S3" ] && aws s3 sync $APP/data/exports "$S3" --only-show-errors >> $LOGS/export.log 2>&1
+15 7 * * *   leadengine cd $APP/ingest && .venv/bin/python -m leadengine ingest news >> $LOGS/news.log 2>&1
+
+# backups (ops/backup.js): what cannot be rebuilt every hour, everything at 04:15 before the nightly run;
+# both copied to S3 (BACKUP_S3_URI; the bucket expires them after 35 days, ops/deploy/README.md)
+10 * * * *   leadengine cd $APP/services && node src/cli.js backup --critical >> $LOGS/backup.log 2>&1 && S3="$(grep -E '^BACKUP_S3_URI=' $APP/.env | cut -d= -f2-)" && [ -n "$S3" ] && aws s3 sync $APP/data/backups "$S3" --sse AES256 --only-show-errors >> $LOGS/backup.log 2>&1
+15 4 * * *   leadengine cd $APP/services && node src/cli.js backup >> $LOGS/backup.log 2>&1 && S3="$(grep -E '^BACKUP_S3_URI=' $APP/.env | cut -d= -f2-)" && [ -n "$S3" ] && aws s3 sync $APP/data/backups "$S3" --sse AES256 --only-show-errors >> $LOGS/backup.log 2>&1
+
+# the AI model's advice on the unsure matches the nightly left (does nothing until the LLM gateway has a key)
+45 5 * * *   leadengine cd $APP/services && node src/cli.js kb:ai-check >> $LOGS/ai-check.log 2>&1
+
+# outreach: the consent ledger's anchor, the day's drafts and reminders, the mailboxes, the summary
+0 6 * * *    leadengine cd $APP/services && node src/cli.js ledger:anchor >> $LOGS/anchor.log 2>&1
+30 6 * * *   leadengine cd $APP/services && node src/cli.js outreach:plan >> $LOGS/outreach.log 2>&1
+30 8 * * *   leadengine cd $APP/services && node src/cli.js reminders:plan >> $LOGS/reminders.log 2>&1
+*/10 * * * * leadengine cd $APP/services && node src/cli.js inbox:read >> $LOGS/inbox.log 2>&1
+0 8 * * *    leadengine cd $APP/services && node src/cli.js summary --send >> $LOGS/summary.log 2>&1
+
+# monitoring: one JSON line per run, which CloudWatch turns into metrics (ops/deploy/README.md)
+5 * * * *    leadengine cd $APP/services && node src/cli.js monitor >> $LOGS/monitor.log 2>&1

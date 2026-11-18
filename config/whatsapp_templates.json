@@ -1,0 +1,70 @@
+{
+  "_comment": "WhatsApp message templates (design 7.6), in the shape Meta's Graph API takes them (POST /{WABA_ID}/message_templates). Utility only: each is a reminder or confirmation the founder asked for on the company page, never a promotion. Meta rejects a body that starts or ends with a variable, so none does. Before submitting, replace https://pages.example.in in the URL buttons with PUBLIC_BASE_URL. Status here is what we know locally; `lead-engine whatsapp:templates --sync` reads the real status, category and quality rating from Meta, and only an APPROVED template is ever sent.",
+  "version": "wa-templates-v1",
+  "templates": [
+    {
+      "name": "filing_deadline_reminder",
+      "language": "en",
+      "category": "UTILITY",
+      "purpose": "deadline_reminders",
+      "params": ["company_name", "deadline", "due_date"],
+      "components": [
+        {
+          "type": "BODY",
+          "text": "Hello, this is a reminder for {{1}}: {{2}} is due by {{3}}. The page below shows the law and the form behind this date. Reply STOP to stop these reminders.",
+          "example": {"body_text": [["Vezras Technologies Private Limited", "the first board meeting", "13 November 2026"]]}
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [{"type": "URL", "text": "View the details", "url": "https://pages.example.in/c/{{1}}", "example": ["k3J9xQ2mZ7"]}]
+        }
+      ]
+    },
+    {
+      "name": "filing_deadline_reminder",
+      "language": "hi",
+      "category": "UTILITY",
+      "purpose": "deadline_reminders",
+      "params": ["company_name", "deadline", "due_date"],
+      "components": [
+        {
+          "type": "BODY",
+          "text": "नमस्ते, यह {{1}} के लिए एक रिमाइंडर है: {{2}} की अंतिम तारीख {{3}} है। नीचे दिए गए पेज पर इस तारीख से जुड़ा क़ानून और फ़ॉर्म दिया गया है। ये रिमाइंडर बंद करने के लिए STOP लिखकर भेजें।",
+          "example": {"body_text": [["Vezras Technologies Private Limited", "पहली बोर्ड मीटिंग", "13 नवंबर 2026"]]}
+        },
+        {
+          "type": "BUTTONS",
+          "buttons": [{"type": "URL", "text": "जानकारी देखें", "url": "https://pages.example.in/c/{{1}}", "example": ["k3J9xQ2mZ7"]}]
+        }
+      ]
+    },
+    {
+      "name": "reminders_confirmation",
+      "language": "en",
+      "category": "UTILITY",
+      "purpose": "deadline_reminders",
+      "params": ["company_name"],
+      "components": [
+        {
+          "type": "BODY",
+          "text": "You will now get filing-date reminders for {{1}} on WhatsApp from SolutionAI. Reply STOP at any time to stop them.",
+          "example": {"body_text": [["Vezras Technologies Private Limited"]]}
+        }
+      ]
+    },
+    {
+      "name": "reminders_confirmation",
+      "language": "hi",
+      "category": "UTILITY",
+      "purpose": "deadline_reminders",
+      "params": ["company_name"],
+      "components": [
+        {
+          "type": "BODY",
+          "text": "अब आपको WhatsApp पर SolutionAI से {{1}} की फ़ाइलिंग तारीखों के रिमाइंडर मिलेंगे। इन्हें कभी भी बंद करने के लिए STOP लिखकर भेजें।",
+          "example": {"body_text": [["Vezras Technologies Private Limited"]]}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+[project]
+name = "leadengine-ingest"
+version = "0.2.0"
+description = "SolutionAI lead engine, data side: polite ingestion, the company knowledge base, enrichment and the need engine."
+requires-python = ">=3.11"
+dependencies = [
+  "requests>=2.32",
+  "beautifulsoup4>=4.12",
+  "lxml>=5.0",
+  "openpyxl>=3.1",
+  "pymongo>=4.10",
+  "splink>=5.0,<6",
+  "duckdb>=1.1",
+  "pyarrow>=17",
+]
+
+[project.optional-dependencies]
+s3 = ["boto3>=1.35"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+leadengine = "leadengine.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

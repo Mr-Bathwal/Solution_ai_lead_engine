@@ -1,0 +1,37 @@
+{
+  "_comment": "The AI voice agent (design 7.6): calls only to a founder who asked for a call back on the company page, never cold. Placed through Sarvam's voice agent (Hindi, English, Hinglish) with Exotel as the telephone line behind it, from a DLT-registered 140-series number. Switched off ('enabled': false) until the DLT registration, the number and a signed-off script are in place; until then a founder who asks for a call is called back by a person, and the Admin Calls page lists them. Changing this file changes what founders hear, so it goes through review like code.",
+  "version": "voice-v1",
+  "enabled": false,
+  "provider": "sarvam",
+  "api_base": "https://apps.sarvam.ai/api/outbounds",
+  "_window_comment": "TRAI's rules (TCCCPR 2018) allow commercial calls between 09:00 and 21:00 IST; the engine refuses any window outside that, and calls in a narrower, politer window inside it.",
+  "trai_window_ist": ["09:00", "21:00"],
+  "window_ist": ["10:00", "19:00"],
+  "call_days_ist": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  "slots": {
+    "morning": ["10:00", "13:00"],
+    "afternoon": ["13:00", "16:00"],
+    "evening": ["16:00", "19:00"],
+    "any": ["10:00", "19:00"]
+  },
+  "max_attempts": 2,
+  "retry_after_hours": 24,
+  "max_call_seconds": 150,
+  "_price_comment": "Sarvam about ₹3.50 a minute plus about ₹0.40 telephony (design 10). Set from the signed price list before going live.",
+  "price_paise_per_minute": 390,
+  "caller_number_pattern": "^\\+?(91)?(140|1600)[0-9]{6,8}$",
+  "retention_days": 400,
+  "script": {
+    "version": "callback-script-v1",
+    "_approval_comment": "A person (Sujas, with the legal review) signs the script off by setting approved_by and approved_on. Until then no AI call is placed, whatever 'enabled' says.",
+    "approved_by": null,
+    "approved_on": null,
+    "must_say": ["AI", "SolutionAI"],
+    "opening": {
+      "en": "Hello, this is SolutionAI's AI assistant. You asked for a call back on {company}'s page, so I am calling about its filings. I am an AI, and you can ask for a person at any time. Is now a good time to talk?",
+      "hi": "नमस्ते, मैं SolutionAI का AI सहायक बोल रहा हूँ। आपने {company} के पेज पर कॉल बैक माँगा था, इसलिए उसकी फ़ाइलिंग के बारे में कॉल कर रहा हूँ। मैं एक AI हूँ, और आप कभी भी किसी व्यक्ति से बात करने को कह सकते हैं। क्या अभी बात करना ठीक रहेगा?"
+    },
+    "agent_brief": "Keep the call between 60 and 150 seconds. Answer in the language the founder uses. Talk only about the company's next filing dates and schemes given in next_dates and schemes, and about how SolutionAI can help with them. Never promise an outcome, never mention penalties or urgency, never ask for money, OTPs, passwords or card details. If the founder asks for a person, set outcome to wants_person and end politely. If they ask not to be called again, set outcome to stop, say they will not be called again, and end. At the end set outcome to one of interested, call_later, not_interested, wants_person, stop, unclear.",
+    "outcomes": ["interested", "call_later", "not_interested", "wants_person", "stop", "unclear"]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@solutionai/lead-engine-services",
+  "version": "0.4.0",
+  "private": true,
+  "description": "SolutionAI lead engine: database set-up, job table and worker, consent ledger, suppression list, outreach (drafting, quality check, gate, email, WhatsApp, reminders), the mailbox reader, call backs, attribution, monitoring, MCP tools and Admin pages.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "lead-engine": "src/cli.js"
+  },
+  "scripts": {
+    "migrate": "node src/cli.js migrate",
+    "worker": "node src/cli.js worker",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "mongodb": "^7.7.0"
+  }
+}

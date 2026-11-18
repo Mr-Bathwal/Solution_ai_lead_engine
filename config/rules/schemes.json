@@ -1,0 +1,192 @@
+{
+  "version": "schemes-provisional-2026-10-28",
+  "provisional": true,
+  "confirmed_by": null,
+  "confirmed_on": null,
+  "status_note": "Stand-in until the platform's rules engine is connected (design 7.4: 'the same verdicts Mr. AI shows'). Built from the UP Startup Atlas scheme research (raw/L5_policy/schemes.csv), whose facts were checked on 1 October 2026 against the sources given; a review on 27-28 October 2026 corrected the schemes that carry a changed_on date (the change_note says what changed and why). The engine knows only public facts about a company, so most verdicts are 'check required' with the missing facts listed; it never says 'eligible' for a scheme with conditions it cannot see, and an unknown fact never makes a rule fire. A 'closed' verdict must carry valid_until: after that date it is shown as 'check required' until someone re-checks the scheme. Verdicts from this file are shown in the Admin pages and are never used in a message until confirmed_by is filled in or the platform endpoint replaces them.",
+  "verdicts": {
+    "eligible": "Every condition is met by facts we hold.",
+    "check_required": "No condition fails on the facts we hold, but some can only be checked with the founder.",
+    "not_eligible": "A condition fails on a fact we hold.",
+    "closed": "The scheme is not taking applications (until valid_until, after which it must be re-checked).",
+    "held": "The company already has it."
+  },
+  "schemes": [
+    {
+      "id": "dpiit_recognition",
+      "name": "DPIIT startup recognition",
+      "level": "Central",
+      "benefit": "The gateway to Startup India benefits: the tax holiday, the seed fund, credit guarantees, government procurement relaxations and lower patent fees.",
+      "rules": [
+        {"if": {"type_code_in": ["PLC"]}, "verdict": "not_eligible",
+         "reason": "A public limited company is not among the entities the 2026 framework recognises (private limited companies, LLPs, registered partnerships and cooperative societies)."},
+        {"if": {"age_years_over": 20}, "verdict": "not_eligible", "reason": "Older than 20 years, the limit even for deep-tech startups."},
+        {"if": {"not": {"type_code_in": ["PTC", "OPC", "LLP"]}}, "verdict": "check_required",
+         "reason": "Recognition is open to a private limited company, an LLP, a registered partnership or a cooperative society. Whether this company counts as a private limited company (a Section 8 company, a foreign company's subsidiary or a government company may or may not be one) must be checked.",
+         "missing": ["entity form", "innovation or scalability", "turnover in each year"]},
+        {"if": {"age_years_over": 10}, "verdict": "check_required", "reason": "Older than 10 years, so it qualifies only as a deep-tech startup (up to 20 years and ₹300 crore turnover)."}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "The type of entity and its age qualify. Recognition also needs an innovative or scalable business and turnover of at most ₹200 crore in every year since incorporation.",
+                  "missing": ["innovation or scalability", "turnover in each year"]},
+      "law": "DPIIT notification of 4 February 2026 (reported as G.S.R. 108(E)), replacing G.S.R. 127(E) of 19 February 2019",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2224069&reg=3&lang=1",
+      "other_sources": ["https://invest.up.gov.in/wp-content/uploads/2026/08/UP-STARTUP-POLICY-EN_030826.pdf"],
+      "apply_url": "https://www.startupindia.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "PIB release of 5 February 2026 and the definition reproduced in the UP Startup Policy 2026 annex (entity list, 10/20 years, ₹200/300 crore)",
+      "changed_on": "2026-10-28",
+      "change_note": "Every type other than PTC, OPC and LLP was 'not eligible'. The definition names a 'private limited company' with no ownership condition, so a foreign company's private subsidiary (FTC) qualifies, and the CIN cannot tell whether a Section 8 company (NPL) is private. Only public companies (PLC) stay 'not eligible'; the others are 'check required'."
+    },
+    {
+      "id": "startup_tax_holiday",
+      "name": "Startup tax holiday (Income-tax Act 2025 s.140, formerly 80-IAC)",
+      "level": "Central",
+      "benefit": "100% of profits tax-free for any three consecutive years out of the first ten.",
+      "rules": [
+        {"if": {"type_code_in": ["PLC"]}, "verdict": "not_eligible",
+         "reason": "The deduction needs a certificate from the Inter-Ministerial Board, which is given only to DPIIT-recognised startups, and a public company cannot be recognised."},
+        {"if": {"incorporated_before": "2016-04-01"}, "verdict": "not_eligible", "reason": "Incorporated before 1 April 2016."},
+        {"if": {"incorporated_on_or_after": "2030-04-01"}, "verdict": "not_eligible", "reason": "Incorporated on or after 1 April 2030."},
+        {"if": {"not": {"type_code_in": ["PTC", "OPC", "LLP"]}}, "verdict": "check_required",
+         "reason": "Open to a company or an LLP that holds DPIIT recognition and the Inter-Ministerial Board's certificate; whether this type of company can be recognised must be checked first.",
+         "missing": ["entity form", "DPIIT recognition", "Inter-Ministerial Board certificate", "turnover"]}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Incorporated within the window (1 April 2016 to 31 March 2030). It needs DPIIT recognition first, then a certificate from the Inter-Ministerial Board, and turnover of at most ₹100 crore in the year claimed.",
+                  "missing": ["DPIIT recognition", "Inter-Ministerial Board certificate", "turnover"]},
+      "law": "Income-tax Act 2025 s.140 (an 'eligible start-up' is a company or an LLP, s.140(16)(b))",
+      "source_url": "https://prsindia.org/files/bills_acts/bills_parliament/2025/Bill_as_passed_by_LS_Income_Tax_(No.2)_Bill.pdf",
+      "other_sources": ["https://www.pib.gov.in/PressReleasePage.aspx?PRID=2128860&reg=3&lang=1"],
+      "apply_url": "https://www.startupindia.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "Income-tax Bill 2025 as passed, s.140(1)-(3) and (16)",
+      "changed_on": "2026-10-28",
+      "change_note": "The statute says 'a company or a limited liability partnership', not 'a private limited company'. Public companies stay 'not eligible' because they cannot get DPIIT recognition, which the Board's certificate needs; other company types are now 'check required'."
+    },
+    {
+      "id": "sisfs",
+      "name": "Startup India Seed Fund Scheme",
+      "level": "Central",
+      "benefit": "Up to ₹20 lakh grant for a proof of concept and up to ₹50 lakh as debt or convertibles, through selected incubators.",
+      "rules": [
+        {"if": {"age_years_over": 2}, "verdict": "not_eligible",
+         "reason": "Incorporated more than two years ago; the scheme takes startups incorporated not more than two years before they apply."}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Startups apply through the incubators selected under the scheme, on seedfund.startupindia.gov.in. Whether a call for startups is open must be checked there: a last date of 31 May 2026 was reported by a third-party site but not confirmed from an official notice, and the Government's answer in Parliament on 17 March 2026 describes the scheme as running. The startup must be DPIIT-recognised and incorporated not more than two years before it applies.",
+                  "missing": ["whether a call is open", "DPIIT recognition"]},
+      "law": "Startup India Seed Fund Scheme guidelines (from 1 April 2021), eligibility criterion 1",
+      "source_url": "https://www.startupindia.gov.in/content/dam/invest-india/Templates/public/Guidelines%20for%20Startup%20India%20Seed%20Fund%20Scheme.pdf",
+      "other_sources": ["https://www.pib.gov.in/PressReleasePage.aspx?PRID=2241313&reg=3&lang=1"],
+      "apply_url": "https://seedfund.startupindia.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "Scheme guidelines (eligibility: DPIIT-recognised, incorporated not more than 2 years ago at the time of application); PIB release of 17 March 2026",
+      "changed_on": "2026-10-28",
+      "change_note": "Was 'closed' (applications closed on 31 May 2026), citing a PIB release that does not say so; no official notice of a closure was found. Now 'check required', with the two-year age limit from the guidelines as the one fact-based 'not eligible'."
+    },
+    {
+      "id": "up_startup_recognition",
+      "name": "Startup in UP recognition (UP Startup Policy 2026)",
+      "level": "State (UP)",
+      "benefit": "The gateway to every UP startup incentive, and free incubation for two years at a recognised incubator.",
+      "rules": [
+        {"if": {"fact": "startinup_listed", "is": true}, "verdict": "held", "reason": "Listed on the Startup in UP portal."}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Incorporated in UP. It also needs DPIIT recognition, registration on StartinUP and incubation at a StartinUP-recognised incubator (not needed from the scaling stage).",
+                  "missing": ["DPIIT recognition", "StartinUP registration", "incubation"]},
+      "law": "UP Startup Policy 2026 cl.7A.1",
+      "source_url": "https://invest.up.gov.in/wp-content/uploads/2026/08/UP-STARTUP-POLICY-EN_030826.pdf",
+      "apply_url": "https://www.startinup.up.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "UP Startup Policy 2026, cl.7A.1 and the note on incubation"
+    },
+    {
+      "id": "up_sustenance_allowance",
+      "name": "UP sustenance allowance",
+      "level": "State (UP)",
+      "benefit": "₹20,000 a month for two years (up to ₹4.8 lakh) until the prototype stage.",
+      "rules": [
+        {"if": {"fact": "stage", "known_and_not_in": ["ideation", "validation", "prototype"]}, "verdict": "check_required",
+         "reason": "The allowance runs only until the prototype stage, and the portal lists this startup at a later stage ({stage}). The portal's stage is self-declared and may be out of date, so the current stage must be confirmed.",
+         "missing": ["current stage", "DPIIT recognition", "incubator's recommendation"]},
+        {"if": {"all": [{"fact": "startinup_listed", "is": true}, {"fact": "incubated", "is": true}]}, "verdict": "check_required",
+         "reason": "Listed on Startup in UP and incubated. It still needs DPIIT recognition and the incubator's recommendation.",
+         "missing": ["DPIIT recognition", "incubator's recommendation"]}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Needs DPIIT recognition, StartinUP registration and incubation at a StartinUP-recognised incubator, with its recommendation, before the prototype stage ends.",
+                  "missing": ["DPIIT recognition", "StartinUP registration", "incubation", "stage"]},
+      "law": "UP Startup Policy 2026 cl.7A.2(i)",
+      "source_url": "https://invest.up.gov.in/wp-content/uploads/2026/08/UP-STARTUP-POLICY-EN_030826.pdf",
+      "apply_url": "https://www.startinup.up.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "UP Startup Policy 2026 cl.7A.2(i) ('till prototype stage') and the policy's own order of stages ('ideation, validation, prototyping, product development, market access and scale-up')",
+      "changed_on": "2026-10-28",
+      "change_note": "Startups at the 'validation' stage were 'not eligible', but the policy puts validation before prototyping, and the match was case-sensitive (the portal writes both 'validation' and 'Validation'). The stage is now compared without regard to case, validation counts as before the prototype, and a later stage gives 'check required' rather than 'not eligible' because the portal's stage is self-declared."
+    },
+    {
+      "id": "up_prototype_grant",
+      "name": "UP prototype grant",
+      "level": "State (UP)",
+      "benefit": "Up to ₹10 lakh for building a prototype (50% more for women-led startups, Purvanchal or Bundelkhand offices, and agri, circular or climate sectors).",
+      "rules": [
+        {"if": {"all": [{"fact": "startinup_listed", "is": true}, {"fact": "incubated", "is": true}]}, "verdict": "check_required",
+         "reason": "Listed on Startup in UP and incubated. It still needs DPIIT recognition and the incubator's recommendation; software qualifies only if it is a standalone, technically advanced product.",
+         "missing": ["DPIIT recognition", "incubator's recommendation"]}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Needs DPIIT recognition, StartinUP registration and incubation at a StartinUP-recognised incubator, with its recommendation. Basic websites and simple apps do not qualify.",
+                  "missing": ["DPIIT recognition", "StartinUP registration", "incubation"]},
+      "law": "UP Startup Policy 2026 cl.7A.2(ii), 7A.2(v), 7A.3(i)",
+      "source_url": "https://invest.up.gov.in/wp-content/uploads/2026/08/UP-STARTUP-POLICY-EN_030826.pdf",
+      "apply_url": "https://www.startinup.up.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "UP Startup Policy 2026 cl.7A.2(ii) and (v)"
+    },
+    {
+      "id": "udyam_registration",
+      "name": "Udyam (MSME) registration",
+      "level": "Central",
+      "benefit": "Free registration that brings 45-day payment protection from buyers, collateral-free loan guarantees (CGTMSE) and public-procurement benefits.",
+      "rules": [],
+      "default": {"verdict": "check_required",
+                  "reason": "Open to micro, small and medium enterprises (micro: investment up to ₹2.5 crore and turnover up to ₹10 crore). Registration is free and self-declared.",
+                  "missing": ["investment", "turnover"]},
+      "law": "MSMED Act 2006; MSME classification revised from 1 April 2025",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2098389&reg=48&lang=2",
+      "apply_url": "https://udyamregistration.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "PIB Budget 2025-26 release (limits raised 2.5 and 2 times)"
+    },
+    {
+      "id": "pm_vbry_employer",
+      "name": "PM Viksit Bharat Rozgar Yojana (employer incentive)",
+      "level": "Central",
+      "benefit": "Up to ₹3,000 a month for two years for each additional EPFO-registered employee kept for six months or more.",
+      "rules": [
+        {"if": {"as_of_after": "2027-07-31"}, "verdict": "closed", "valid_until": "2027-10-31",
+         "reason": "Only for jobs created up to 31 July 2027."}
+      ],
+      "default": {"verdict": "check_required",
+                  "reason": "Relevant once it hires: it must register with EPFO and add at least two employees (salary up to ₹1 lakh a month) for jobs created by 31 July 2027.",
+                  "missing": ["EPFO registration", "new hires"]},
+      "law": "PM-VBRY (Employment Linked Incentive) Part B",
+      "source_url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2148270&reg=3&lang=1",
+      "apply_url": "https://pmvbry.epfindia.gov.in/",
+      "checked_on": "2026-10-01",
+      "verified_on": "2026-10-27",
+      "verified_against": "PIB release of 25 July 2025 (jobs created 1 August 2025 to 31 July 2027; ₹3,000 a month; two more employees for employers under 50)",
+      "changed_on": "2026-10-28",
+      "change_note": "The 'closed' verdict now carries valid_until (three months after the scheme's end), after which it must be re-checked in case the scheme is extended."
+    }
+  ]
+}

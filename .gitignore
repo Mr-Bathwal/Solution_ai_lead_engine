@@ -1,0 +1,46 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# node
+node_modules/
+
+# local data (raw pages and uploaded files live in S3 in production)
+data/
+*.log
+
+# office lock files
+~$*
+
+# Generated design artefacts: page renders and contact sheets are rebuilt by design/build/build.py,
+# Word files are regenerated from the same sources, and v1.0 is superseded by v1.1.
+design/build/p[0-9]*.png
+design/build/sheet*.png
+design/build/v1*_p*.png
+design/**/*.docx
+design/*v1.0*
+
+# The Week 2 Admin screenshots show real companies from the MCA file and the internal shortlist with
+# fit scores; the public repository carries screenshots of the fictional demo instead.
+docs/img/admin-*.png
+
+# The legal review pack is correspondence with the lawyer; it stays out of the public repository
+# unless the owner decides otherwise.
+docs/legal/
+ops/legal/
+
+# Founder interview notes (company names and quotes) stay private; the header-only template is
+# ops/founder_conversations.example.csv.
+ops/founder_conversations.csv
+
+# The architecture documents are marked "Internal" (prepared for the client's technical review); they stay
+# out of the public repository until the owner decides otherwise.
+design/

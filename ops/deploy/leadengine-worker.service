@@ -1,0 +1,22 @@
+[Unit]
+Description=SolutionAI lead engine: job worker (drafts, sends, reminders, call backs)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=leadengine
+WorkingDirectory=/opt/ai-lead-engine/services
+EnvironmentFile=/opt/ai-lead-engine/.env
+ExecStart=/usr/bin/env node src/cli.js worker
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=60
+StandardOutput=append:/var/log/leadengine/worker.log
+StandardError=append:/var/log/leadengine/worker.log
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

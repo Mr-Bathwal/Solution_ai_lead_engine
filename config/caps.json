@@ -1,0 +1,67 @@
+{
+  "_comment": "Hard caps for the lead engine. Nothing paid can exceed these without a change to this file. Amounts in INR, excluding GST.",
+  "region": "UP",
+  "monthly": {
+    "paid_profile_lookups": 200,
+    "llm_spend_inr": 400,
+    "email_verifications_paid": 200,
+    "web_searches": 1000,
+    "whatsapp_spend_inr": 150,
+    "voice_calls": 50,
+    "voice_minutes": 150
+  },
+  "daily": {
+    "free_basic_lookups": 500,
+    "free_name_searches": 500
+  },
+  "email": {
+    "mailboxes": 2,
+    "daily_cap_per_mailbox": 30,
+    "warmup_days": 21,
+    "send_window_ist": [
+      "10:00",
+      "17:30"
+    ],
+    "pause_if_bounce_pct_above": 2.0,
+    "pause_if_complaint_pct_above": 0.1,
+    "mailbox_ids": [
+      "mailbox-1",
+      "mailbox-2"
+    ],
+    "warmup_start": "2026-10-28",
+    "outreach_ramp": [
+      {
+        "from_day": 22,
+        "cap": 25
+      },
+      {
+        "from_day": 29,
+        "cap": 30
+      }
+    ]
+  },
+  "contact_budget": {
+    "first_touch": 1,
+    "follow_ups": 1,
+    "follow_up_after_days": 7,
+    "new_need_min_gap_days": 30,
+    "max_touches_per_30_days": 2
+  },
+  "holdout_pct": 10,
+  "shortlist_per_month": 200,
+  "crawl": {
+    "min_gap_seconds_per_host": 2.0,
+    "robots_cache_hours": 24,
+    "max_requests_per_run": 3000,
+    "timeout_seconds": 40,
+    "max_requests_by_source": {
+      "startinup": 6000
+    },
+    "max_response_mb": 25,
+    "blocked_hosts_comment": "Never fetched, whatever their robots.txt says. Startup India's API forbids automated access (robots.txt Disallow: / since October 2026); re-enabling it must be a deliberate change here, not a side effect of the site changing its file.",
+    "blocked_hosts": [
+      "api.startupindia.gov.in",
+      "www.startupindia.gov.in"
+    ]
+  }
+}

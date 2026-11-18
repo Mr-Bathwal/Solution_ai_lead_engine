@@ -1,0 +1,61 @@
+# Runs both test suites on every push and pull request. The tests start their own throwaway mongod
+# (a single-node replica set, and a second one with access control for the role checks), so the job
+# only needs the mongod binary on PATH; no real network calls are made by any test.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MONGODB_VERSION: "8.0.4"
+
+jobs:
+  services:
+    name: services (Node)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: services/package-lock.json
+      - name: mongod
+        run: |
+          curl -fsSL "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}.tgz" | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+        working-directory: services
+      - run: npm test
+        working-directory: services
+
+  ingest:
+    name: ingest (Python)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ingest/pyproject.toml
+      - name: mongod
+        run: |
+          curl -fsSL "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}.tgz" | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}/bin" >> "$GITHUB_PATH"
+      - run: pip install -e ".[dev]"
+        working-directory: ingest
+      - run: python -m pytest
+        working-directory: ingest

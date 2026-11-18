@@ -1,0 +1,15 @@
+{
+  "_comment": "Funding news for `leadengine ingest news` (ingest/src/leadengine/news.py; design 7.1 and 7.4, 'Signals'). Each feed and the GDELT query are fetched through the polite fetcher, so robots.txt is respected, requests are paced and counted, and a feed that refuses or fails is counted and skipped. Check each feed URL still answers with RSS or Atom when the command is first run (`leadengine ingest news --dry-run`), and after a publisher redesigns its site. GDELT DOC 2.0 API: GET https://api.gdeltproject.org/api/v2/doc/doc?query=...&mode=artlist&format=json&maxrecords=N&timespan=1d, answering {\"articles\": [{\"url\", \"title\", \"seendate\", \"domain\"}]}; check that shape on the first live run. funding_words is a Python regular expression, case ignored: a headline is read further only if it matches (money, a round or the word funding; the verbs alone are not enough, so 'X raises concerns' is not funding news). Only headlines that name exactly one UP company become a proposed signal, for a person to confirm or reject in the Admin pages.",
+  "feeds": [
+    {"name": "Inc42", "url": "https://inc42.com/feed/"},
+    {"name": "YourStory", "url": "https://yourstory.com/feed"},
+    {"name": "Entrackr", "url": "https://entrackr.com/feed/"}
+  ],
+  "gdelt": {
+    "enabled": true,
+    "query": "(raises OR raised OR funding OR \"seed round\" OR \"pre-seed\") (Lucknow OR Noida OR Kanpur OR Ghaziabad OR Varanasi OR Prayagraj OR Agra OR Meerut OR Gorakhpur OR \"Uttar Pradesh\") sourcecountry:india sourcelang:english",
+    "max_records": 75,
+    "timespan": "1d"
+  },
+  "funding_words": "\\b(?:funding|funds|fundraise|fundraising|investment|seed|pre-seed|(?:pre-)?series [a-f]|bridge round|angel round|crore|cr|lakh|million|mn|billion|bn)\\b|[$₹]\\s?\\d|\\brs\\.?\\s?\\d|\\binr\\s?\\d"
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=SolutionAI lead engine: company pages, claim form, unsubscribe, Meta and Sarvam webhooks (127.0.0.1:8791)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=leadengine
+WorkingDirectory=/opt/ai-lead-engine/services
+EnvironmentFile=/opt/ai-lead-engine/.env
+ExecStart=/usr/bin/env node src/cli.js pages
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+StandardOutput=append:/var/log/leadengine/pages.log
+StandardError=append:/var/log/leadengine/pages.log
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3266 @@
+{
+  "version": 2,
+  "database_default": "solutionai_leads",
+  "notes": "Single source of truth for the lead engine's MongoDB collections. Applied by services/src/db/migrate.js (production) and by ingest/src/leadengine/schema.py (tests and local set-up). Validators run on every insert and update, so the rules below are enforced by the database itself, not only by our code.",
+  "collections": {
+    "companies": {
+      "purpose": "One record per company, keyed on its CIN or LLPIN. Uttar Pradesh only.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "kind",
+            "state",
+            "name",
+            "ids",
+            "attrs",
+            "sources",
+            "first_seen_at",
+            "updated_at",
+            "schema_version"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^([UL][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}|[A-Z]{3}-[0-9]{4})$"
+            },
+            "kind": {
+              "enum": [
+                "company",
+                "llp"
+              ]
+            },
+            "state": {
+              "enum": [
+                "UP"
+              ],
+              "description": "The engine covers Uttar Pradesh only; any other state is refused."
+            },
+            "name": {
+              "bsonType": "string",
+              "minLength": 1
+            },
+            "name_norm": {
+              "bsonType": "string"
+            },
+            "ids": {
+              "bsonType": "object",
+              "properties": {
+                "cin": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "llpin": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "pan": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[A-Z]{5}[0-9]{4}[A-Z]$"
+                },
+                "gstins": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "string",
+                    "pattern": "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$"
+                  }
+                },
+                "udyam": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "domain": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "uplc": {
+                  "bsonType": "array",
+                  "items": {
+                    "bsonType": "string",
+                    "pattern": "^UPLC_[0-9]{8}$"
+                  }
+                }
+              }
+            },
+            "attrs": {
+              "bsonType": "object",
+              "additionalProperties": {
+                "bsonType": "object",
+                "required": [
+                  "value",
+                  "source",
+                  "seen_at"
+                ],
+                "properties": {
+                  "value": {},
+                  "source": {
+                    "bsonType": "string"
+                  },
+                  "ref": {},
+                  "confidence": {
+                    "enum": [
+                      "high",
+                      "medium",
+                      "low"
+                    ]
+                  },
+                  "seen_at": {
+                    "bsonType": "date"
+                  }
+                }
+              }
+            },
+            "former_names": {
+              "bsonType": "array"
+            },
+            "cohort": {
+              "bsonType": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}$"
+            },
+            "sources": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "first_seen_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            },
+            "schema_version": {
+              "bsonType": "int"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "name_norm",
+          "key": {
+            "name_norm": 1
+          }
+        },
+        {
+          "name": "cohort",
+          "key": {
+            "cohort": 1
+          }
+        },
+        {
+          "name": "pan",
+          "key": {
+            "ids.pan": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "domain",
+          "key": {
+            "ids.domain": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "gstins",
+          "key": {
+            "ids.gstins": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "uplc",
+          "key": {
+            "ids.uplc": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "district",
+          "key": {
+            "attrs.district.value": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "nic_division",
+          "key": {
+            "attrs.nic_division.value": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        }
+      ]
+    },
+    "people": {
+      "purpose": "Directors and contacts. Every contact point carries its source, legal basis and verification; consent itself is recorded in consents.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "name",
+            "company_ids",
+            "contacts",
+            "created_at",
+            "updated_at"
+          ],
+          "properties": {
+            "din": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9]{8}$"
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "company_ids": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "contacts": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "channel",
+                  "address",
+                  "source",
+                  "legal_basis"
+                ],
+                "properties": {
+                  "channel": {
+                    "enum": [
+                      "email",
+                      "whatsapp",
+                      "voice",
+                      "sms"
+                    ]
+                  },
+                  "address": {
+                    "bsonType": "string"
+                  },
+                  "source": {
+                    "bsonType": "string"
+                  },
+                  "legal_basis": {
+                    "enum": [
+                      "published_under_law",
+                      "published_by_company",
+                      "published_by_person",
+                      "consent"
+                    ]
+                  },
+                  "verified": {
+                    "bsonType": [
+                      "bool",
+                      "null"
+                    ]
+                  },
+                  "verified_at": {
+                    "bsonType": [
+                      "date",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "din",
+          "key": {
+            "din": 1
+          },
+          "options": {
+            "unique": true,
+            "partialFilterExpression": {
+              "din": {
+                "$type": "string"
+              }
+            }
+          }
+        },
+        {
+          "name": "company_ids",
+          "key": {
+            "company_ids": 1
+          }
+        },
+        {
+          "name": "contact_address",
+          "key": {
+            "contacts.address": 1
+          }
+        }
+      ]
+    },
+    "source_records": {
+      "purpose": "Raw records exactly as each source gave them. Never edited: a changed record is stored as a new version with a new content hash.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "source",
+            "natural_key",
+            "content_hash",
+            "payload",
+            "legal_basis",
+            "fetched_at",
+            "run_id",
+            "schema_version"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "mca_monthly",
+                "startinup",
+                "upsm",
+                "dpiit",
+                "dpiit_stats",
+                "incubator",
+                "incubator_portfolio",
+                "sisfs_incubator"
+              ]
+            },
+            "natural_key": {
+              "bsonType": "string",
+              "minLength": 1
+            },
+            "content_hash": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "payload": {
+              "bsonType": "object"
+            },
+            "legal_basis": {
+              "enum": [
+                "published_under_law",
+                "published_by_company",
+                "public_statistics"
+              ]
+            },
+            "personal_fields": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "company_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "url": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "raw_ref": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "fetched_at": {
+              "bsonType": "date"
+            },
+            "run_id": {
+              "bsonType": "string"
+            },
+            "schema_version": {
+              "bsonType": "int"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "version_unique",
+          "key": {
+            "source": 1,
+            "natural_key": 1,
+            "content_hash": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "latest_per_key",
+          "key": {
+            "source": 1,
+            "natural_key": 1,
+            "fetched_at": -1
+          }
+        },
+        {
+          "name": "company",
+          "key": {
+            "company_id": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "run",
+          "key": {
+            "run_id": 1
+          }
+        }
+      ]
+    },
+    "ingest_runs": {
+      "purpose": "One document per collector, knowledge-base or nightly run: what was fetched, what changed, what failed. At most one nightly run is 'running' at a time (the one_running_nightly index is its lock).",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "source",
+            "status",
+            "started_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string"
+            },
+            "source": {
+              "bsonType": "string"
+            },
+            "status": {
+              "enum": [
+                "running",
+                "ok",
+                "partial",
+                "failed"
+              ]
+            },
+            "params": {
+              "bsonType": "object"
+            },
+            "stats": {
+              "bsonType": "object"
+            },
+            "notes": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "started_at": {
+              "bsonType": "date"
+            },
+            "finished_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "source_started",
+          "key": {
+            "source": 1,
+            "started_at": -1
+          }
+        },
+        {
+          "name": "one_running_nightly",
+          "key": {
+            "source": 1
+          },
+          "options": {
+            "unique": true,
+            "partialFilterExpression": {
+              "source": "nightly",
+              "status": "running"
+            }
+          }
+        }
+      ]
+    },
+    "leads": {
+      "purpose": "A company we may contact, with its current stage. One lead per company. Rebuilt nightly by the need engine; the stage only moves forward, and the holdout draw never changes once made.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "company_id",
+            "stage",
+            "holdout",
+            "cohort",
+            "created_at",
+            "updated_at"
+          ],
+          "properties": {
+            "company_id": {
+              "bsonType": "string"
+            },
+            "stage": {
+              "enum": [
+                "discovered",
+                "shortlisted",
+                "contacted",
+                "engaged",
+                "claimed",
+                "customer",
+                "closed"
+              ]
+            },
+            "holdout": {
+              "bsonType": "bool",
+              "description": "True for the random 10% that is never contacted."
+            },
+            "holdout_draw": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "How the holdout decision was made: a keyed hash of the company id, so it is random, stable and reproducible.",
+              "properties": {
+                "method": {
+                  "bsonType": "string"
+                },
+                "u": {
+                  "bsonType": "double",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "drawn_at": {
+                  "bsonType": "date"
+                }
+              }
+            },
+            "cohort": {
+              "bsonType": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}$"
+            },
+            "eligible": {
+              "bsonType": [
+                "bool",
+                "null"
+              ]
+            },
+            "eligibility_reasons": {
+              "bsonType": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "score": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "fit": {
+                  "bsonType": "int",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "components": {
+                  "bsonType": "array"
+                },
+                "version": {
+                  "bsonType": "string"
+                },
+                "computed_at": {
+                  "bsonType": "date"
+                }
+              }
+            },
+            "needs": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "deadlines": {
+                  "bsonType": "array"
+                },
+                "schemes": {
+                  "bsonType": "array"
+                },
+                "rules_version": {
+                  "bsonType": "string"
+                },
+                "rules_confirmed": {
+                  "bsonType": "bool",
+                  "description": "False until a CA has signed off the rules; unconfirmed needs are never used in a message."
+                },
+                "computed_at": {
+                  "bsonType": "date"
+                }
+              }
+            },
+            "shortlist": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "month": {
+                  "bsonType": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}$"
+                },
+                "rank": {
+                  "bsonType": "int",
+                  "minimum": 1
+                }
+              }
+            },
+            "next_action": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "company_unique",
+          "key": {
+            "company_id": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "stage_updated",
+          "key": {
+            "stage": 1,
+            "updated_at": -1
+          }
+        },
+        {
+          "name": "cohort_stage",
+          "key": {
+            "cohort": 1,
+            "stage": 1
+          }
+        },
+        {
+          "name": "shortlist_rank",
+          "key": {
+            "shortlist.month": 1,
+            "shortlist.rank": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "fit",
+          "key": {
+            "score.fit": -1
+          }
+        }
+      ]
+    },
+    "activities": {
+      "purpose": "Every touch and outcome, append-only. The single source for the dashboard and attribution.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "at",
+            "type"
+          ],
+          "properties": {
+            "at": {
+              "bsonType": "date"
+            },
+            "type": {
+              "enum": [
+                "drafted",
+                "approved",
+                "rejected",
+                "sent",
+                "delivered",
+                "opened",
+                "replied",
+                "bounced",
+                "complained",
+                "unsubscribed",
+                "claimed",
+                "signed_up",
+                "service_request",
+                "paid",
+                "call_completed",
+                "call_requested",
+                "handed_over",
+                "note",
+                "address_not_used"
+              ]
+            },
+            "channel": {
+              "enum": [
+                "email",
+                "whatsapp",
+                "voice",
+                "sms",
+                "in_app",
+                "page",
+                "platform",
+                null
+              ]
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "company_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "campaign": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "template_version": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "model_version": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "holdout": {
+              "bsonType": [
+                "bool",
+                "null"
+              ]
+            },
+            "idem_key": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "data": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "company_at",
+          "key": {
+            "company_id": 1,
+            "at": -1
+          }
+        },
+        {
+          "name": "lead_at",
+          "key": {
+            "lead_id": 1,
+            "at": -1
+          }
+        },
+        {
+          "name": "type_at",
+          "key": {
+            "type": 1,
+            "at": -1
+          }
+        },
+        {
+          "name": "campaign",
+          "key": {
+            "campaign": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "idem_unique",
+          "key": {
+            "idem_key": 1
+          },
+          "options": {
+            "unique": true,
+            "partialFilterExpression": {
+              "idem_key": {
+                "$type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "consents": {
+      "purpose": "Consent ledger. Append-only and hash-chained: each entry carries the hash of the one before it, so any later edit or deletion is detectable.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "seq",
+            "subject",
+            "channel",
+            "purpose",
+            "action",
+            "wording",
+            "wording_version",
+            "captured_via",
+            "recorded_at",
+            "prev_hash",
+            "hash"
+          ],
+          "properties": {
+            "seq": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 1
+            },
+            "subject": {
+              "bsonType": "object",
+              "required": [
+                "type",
+                "id"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "company",
+                    "person"
+                  ]
+                },
+                "id": {
+                  "bsonType": "string"
+                }
+              }
+            },
+            "channel": {
+              "enum": [
+                "email",
+                "whatsapp",
+                "voice",
+                "sms",
+                "in_app"
+              ]
+            },
+            "purpose": {
+              "enum": [
+                "deadline_reminders",
+                "service_updates",
+                "scheme_alerts",
+                "marketing",
+                "callback"
+              ]
+            },
+            "action": {
+              "enum": [
+                "grant",
+                "withdraw"
+              ]
+            },
+            "contact_key": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "contact": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "wording": {
+              "bsonType": "string",
+              "minLength": 1
+            },
+            "wording_version": {
+              "bsonType": "string"
+            },
+            "captured_via": {
+              "enum": [
+                "company_page_claim",
+                "platform_settings",
+                "email_reply",
+                "whatsapp_reply",
+                "call",
+                "admin_entry",
+                "consent_manager"
+              ]
+            },
+            "proof": {
+              "bsonType": "object"
+            },
+            "recorded_by": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "recorded_at": {
+              "bsonType": "date"
+            },
+            "prev_hash": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "hash": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "seq_unique",
+          "key": {
+            "seq": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "subject_latest",
+          "key": {
+            "subject.type": 1,
+            "subject.id": 1,
+            "channel": 1,
+            "purpose": 1,
+            "seq": -1
+          }
+        },
+        {
+          "name": "contact_latest",
+          "key": {
+            "contact_key": 1,
+            "channel": 1,
+            "purpose": 1,
+            "seq": -1
+          },
+          "options": {
+            "sparse": true
+          }
+        }
+      ]
+    },
+    "suppressions": {
+      "purpose": "One do-not-contact list for every channel. Keyed on an HMAC of the normalised address under CONTACT_KEY_SECRET (kept outside the database); erasure requests keep only the key. The application can add and update entries but never delete one.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "kind",
+            "reason",
+            "created_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^(email|phone|domain):[0-9a-f]{64}$"
+            },
+            "kind": {
+              "enum": [
+                "email",
+                "phone",
+                "domain"
+              ]
+            },
+            "value": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "enum": [
+                "unsubscribe",
+                "hard_bounce",
+                "spam_complaint",
+                "erasure_request",
+                "do_not_contact_request",
+                "wrong_contact",
+                "manual"
+              ]
+            },
+            "source": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "note": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "erased_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ],
+              "description": "When an erasure request blanked this entry's address and note."
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "kind_created",
+          "key": {
+            "kind": 1,
+            "created_at": -1
+          }
+        }
+      ]
+    },
+    "source_state": {
+      "purpose": "Which version of each source record is current, and when it was last seen. source_records keeps every version ever seen; this points at the current one, so a record that changes back to an earlier version is still read correctly.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "source",
+            "natural_key",
+            "content_hash",
+            "first_seen_at",
+            "last_seen_at",
+            "last_changed_at",
+            "versions"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "description": "<source>|<natural_key>"
+            },
+            "source": {
+              "bsonType": "string"
+            },
+            "natural_key": {
+              "bsonType": "string"
+            },
+            "content_hash": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "first_seen_at": {
+              "bsonType": "date"
+            },
+            "last_seen_at": {
+              "bsonType": "date"
+            },
+            "last_changed_at": {
+              "bsonType": "date"
+            },
+            "versions": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 1
+            },
+            "last_run_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "source_seen",
+          "key": {
+            "source": 1,
+            "last_seen_at": -1
+          }
+        },
+        {
+          "name": "source_changed",
+          "key": {
+            "source": 1,
+            "last_changed_at": -1
+          }
+        }
+      ]
+    },
+    "entity_links": {
+      "purpose": "The knowledge base's answer to 'which company is this?' for every entity that has no CIN of its own (today, a startup known only by its UPLC number). Rebuilt by the nightly matching run; a person's decision in match_reviews always wins.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "entity_type",
+            "entity_key",
+            "status",
+            "model_version",
+            "updated_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "description": "<entity_type>:<entity_key>"
+            },
+            "entity_type": {
+              "enum": [
+                "startup",
+                "incubator"
+              ]
+            },
+            "entity_key": {
+              "bsonType": "string"
+            },
+            "company_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "pattern": "^([UL][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}|[A-Z]{3}-[0-9]{4})$"
+            },
+            "status": {
+              "enum": [
+                "linked",
+                "review",
+                "unlinked",
+                "rejected"
+              ]
+            },
+            "method": {
+              "enum": [
+                "exact_id",
+                "exact_name",
+                "splink",
+                "review",
+                "vendor_search",
+                "manual",
+                null
+              ]
+            },
+            "probability": {
+              "bsonType": [
+                "double",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 1
+            },
+            "candidates": {
+              "bsonType": "array"
+            },
+            "evidence": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "model_version": {
+              "bsonType": "string"
+            },
+            "decided_by": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "matcher": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "the matcher's own decision before any reviewer's (status, company_id, method, probability); precision is measured on it"
+            },
+            "ai_check": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "the AI model's advice on an unsure pair (services/src/admin/ai_check.js): never a decision"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "company",
+          "key": {
+            "company_id": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "type_status",
+          "key": {
+            "entity_type": 1,
+            "status": 1
+          }
+        }
+      ]
+    },
+    "match_reviews": {
+      "purpose": "A person's (or, later, the AI checker's) decision on one candidate pair. These override the matcher and double as the labelled set that measures matching precision.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "entity_type",
+            "entity_key",
+            "company_id",
+            "decision",
+            "decided_by",
+            "decided_at",
+            "source"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "description": "<entity_type>:<entity_key>|<company_id>"
+            },
+            "entity_type": {
+              "enum": [
+                "startup",
+                "incubator"
+              ]
+            },
+            "entity_key": {
+              "bsonType": "string"
+            },
+            "company_id": {
+              "bsonType": "string"
+            },
+            "decision": {
+              "enum": [
+                "same",
+                "different",
+                "unsure"
+              ]
+            },
+            "decided_by": {
+              "bsonType": "string"
+            },
+            "decided_at": {
+              "bsonType": "date"
+            },
+            "note": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "enum": [
+                "admin",
+                "label_set",
+                "llm"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "entity",
+          "key": {
+            "entity_type": 1,
+            "entity_key": 1
+          }
+        },
+        {
+          "name": "decision",
+          "key": {
+            "decision": 1,
+            "decided_at": -1
+          }
+        }
+      ]
+    },
+    "enrichment_cache": {
+      "purpose": "Every enrichment answer, found or not found, with its expiry (company facts 90 days, contact details 30). A cached 'not found' stops us paying twice for nothing. MongoDB deletes expired entries itself.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "provider",
+            "op",
+            "key",
+            "status",
+            "fetched_at",
+            "expires_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "description": "<provider>:<op>:<key>"
+            },
+            "provider": {
+              "bsonType": "string"
+            },
+            "op": {
+              "bsonType": "string"
+            },
+            "key": {
+              "bsonType": "string"
+            },
+            "status": {
+              "enum": [
+                "found",
+                "not_found",
+                "unparsed",
+                "error"
+              ]
+            },
+            "result": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "raw_ref": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "cost_inr": {
+              "bsonType": [
+                "double",
+                "int",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "fetched_at": {
+              "bsonType": "date"
+            },
+            "expires_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        },
+        {
+          "name": "provider_key",
+          "key": {
+            "provider": 1,
+            "key": 1
+          }
+        }
+      ]
+    },
+    "usage": {
+      "purpose": "Counters behind the hard caps in config/caps.json (paid lookups a month, free lookups a day, ...) and each mailbox's sends per IST day. A unit is taken atomically before the call or the send, so two workers cannot overrun a cap between them.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "meter",
+            "period",
+            "count",
+            "cap",
+            "updated_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "description": "<meter>:<period>"
+            },
+            "meter": {
+              "bsonType": "string"
+            },
+            "period": {
+              "bsonType": "string"
+            },
+            "count": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "cap": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "meter_period",
+          "key": {
+            "meter": 1,
+            "period": -1
+          }
+        }
+      ]
+    },
+    "audit_log": {
+      "purpose": "Every view or export of personal data in the Admin pages, every review decision, every sign-in (accepted or refused) and sign-out, every import of match labels, every erasure, every decision on a reply, and every platform event that was refused, every MCA file uploaded, every bulk export asked for and decided; append-only (design 7.11).",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "at",
+            "actor",
+            "action"
+          ],
+          "properties": {
+            "at": {
+              "bsonType": "date"
+            },
+            "actor": {
+              "bsonType": "string"
+            },
+            "role": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "action": {
+              "enum": [
+                "view_personal",
+                "export",
+                "review_decision",
+                "denied",
+                "sign_in",
+                "sign_out",
+                "label_import",
+                "erasure",
+                "approval_decision",
+                "outcome_recorded",
+                "inbound_decision",
+                "event_received",
+                "suppression_lifted",
+                "upload_mca_file",
+                "export_request",
+                "export_decision"
+              ]
+            },
+            "target": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "fields": {
+              "bsonType": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "detail": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "at",
+          "key": {
+            "at": -1
+          }
+        },
+        {
+          "name": "actor_at",
+          "key": {
+            "actor": 1,
+            "at": -1
+          }
+        }
+      ]
+    },
+    "revoked_sessions": {
+      "purpose": "Admin sign-in sessions ended by signing out, keyed on a hash of the session's signature. A session cookie lives at most 12 hours, so each entry is deleted by the TTL index when the session would have expired anyway.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "email",
+            "revoked_at",
+            "expires_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "sha256 of the session cookie's signature"
+            },
+            "email": {
+              "bsonType": "string"
+            },
+            "reason": {
+              "enum": [
+                "sign_out",
+                null
+              ]
+            },
+            "revoked_at": {
+              "bsonType": "date"
+            },
+            "expires_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        }
+      ]
+    },
+    "llm_calls": {
+      "purpose": "Every AI call with its model, tokens and cost, so the AI cost per lead is always known.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "at",
+            "task",
+            "model",
+            "prompt_version",
+            "input_tokens",
+            "output_tokens",
+            "cost_inr"
+          ],
+          "properties": {
+            "at": {
+              "bsonType": "date"
+            },
+            "task": {
+              "bsonType": "string"
+            },
+            "model": {
+              "bsonType": "string"
+            },
+            "prompt_version": {
+              "bsonType": "string"
+            },
+            "input_tokens": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "output_tokens": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "cost_inr": {
+              "bsonType": [
+                "double",
+                "int",
+                "decimal"
+              ],
+              "minimum": 0
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "company_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "latency_ms": {
+              "bsonType": [
+                "int",
+                "long",
+                "null"
+              ]
+            },
+            "ok": {
+              "bsonType": [
+                "bool",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "at",
+          "key": {
+            "at": -1
+          }
+        },
+        {
+          "name": "task_at",
+          "key": {
+            "task": 1,
+            "at": -1
+          }
+        },
+        {
+          "name": "company",
+          "key": {
+            "company_id": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        }
+      ]
+    },
+    "jobs": {
+      "purpose": "The schedule of every pending step. Workers claim due jobs atomically; the idempotency key stops a retry from repeating a side effect.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "type",
+            "idem_key",
+            "status",
+            "due_at",
+            "priority",
+            "attempts",
+            "max_attempts",
+            "created_at",
+            "updated_at"
+          ],
+          "properties": {
+            "type": {
+              "bsonType": "string",
+              "minLength": 1
+            },
+            "idem_key": {
+              "bsonType": "string",
+              "minLength": 1
+            },
+            "status": {
+              "enum": [
+                "pending",
+                "running",
+                "done",
+                "dead",
+                "cancelled"
+              ]
+            },
+            "due_at": {
+              "bsonType": "date"
+            },
+            "priority": {
+              "bsonType": "int"
+            },
+            "attempts": {
+              "bsonType": "int",
+              "minimum": 0
+            },
+            "max_attempts": {
+              "bsonType": "int",
+              "minimum": 1
+            },
+            "deferrals": {
+              "bsonType": "int",
+              "minimum": 0,
+              "description": "How often the step was told to wait (send window, daily cap); waiting never uses up an attempt."
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "step": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "payload": {
+              "bsonType": "object"
+            },
+            "lock": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "owner": {
+                  "bsonType": "string"
+                },
+                "token": {
+                  "bsonType": "string"
+                },
+                "expires_at": {
+                  "bsonType": "date"
+                }
+              }
+            },
+            "last_error": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {},
+            "cancel_requested": {
+              "bsonType": "bool",
+              "description": "cancel() arrived while an attempt was running: the job is cancelled instead of retried."
+            },
+            "cancel_reason": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            },
+            "finished_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "idem_unique",
+          "key": {
+            "idem_key": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "claim_order",
+          "key": {
+            "status": 1,
+            "priority": -1,
+            "due_at": 1
+          }
+        },
+        {
+          "name": "claim_by_type",
+          "key": {
+            "status": 1,
+            "type": 1,
+            "priority": -1,
+            "due_at": 1
+          }
+        },
+        {
+          "name": "lock_expiry",
+          "key": {
+            "lock.expires_at": 1
+          },
+          "options": {
+            "partialFilterExpression": {
+              "status": "running"
+            }
+          }
+        },
+        {
+          "name": "lead_step",
+          "key": {
+            "lead_id": 1,
+            "step": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        }
+      ]
+    },
+    "messages": {
+      "purpose": "Every outreach message from draft to outcome (design 7.5): the evidence pack it was written from, the draft, the quality check, the person's approval (with a hash of exactly what they approved), the compliance gate's answer and the send. One per company, kind and need (idem_key). A working collection: an erasure request blanks the recipient's address here.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "idem_key",
+            "company_id",
+            "kind",
+            "channel",
+            "language",
+            "status",
+            "evidence",
+            "created_at",
+            "updated_at",
+            "expires_at"
+          ],
+          "properties": {
+            "idem_key": {
+              "bsonType": "string",
+              "pattern": "^msg:.+$"
+            },
+            "company_id": {
+              "bsonType": "string"
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "first_touch",
+                "follow_up",
+                "new_need"
+              ]
+            },
+            "need_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "description": "For a new-need message, the need it is about: d:<deadline>:<date> or s:<scheme>."
+            },
+            "channel": {
+              "enum": [
+                "email"
+              ]
+            },
+            "language": {
+              "enum": [
+                "en",
+                "hi"
+              ]
+            },
+            "status": {
+              "enum": [
+                "qc_failed",
+                "awaiting_approval",
+                "approved",
+                "rejected",
+                "sending",
+                "sent",
+                "send_unknown",
+                "blocked",
+                "bounced",
+                "expired",
+                "cancelled"
+              ]
+            },
+            "recipient": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "address": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "legal_basis": {
+                  "enum": [
+                    "published_under_law",
+                    "published_by_company",
+                    "published_by_person",
+                    "consent",
+                    null
+                  ]
+                }
+              }
+            },
+            "mailbox": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence": {
+              "bsonType": "object",
+              "required": [
+                "version",
+                "hash",
+                "pack"
+              ],
+              "properties": {
+                "version": {
+                  "bsonType": "string"
+                },
+                "hash": {
+                  "bsonType": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "pack": {
+                  "bsonType": "object"
+                }
+              }
+            },
+            "draft": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "subject": {
+                  "bsonType": "string"
+                },
+                "body": {
+                  "bsonType": "string"
+                },
+                "drafter": {
+                  "bsonType": "string"
+                },
+                "prompt_version": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "model": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "qc": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "approval": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "approved",
+                    "rejected"
+                  ]
+                },
+                "by": {
+                  "bsonType": "string"
+                },
+                "at": {
+                  "bsonType": "date"
+                },
+                "approved_hash": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "edited": {
+                  "bsonType": "bool"
+                }
+              }
+            },
+            "gate": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "send": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "history": {
+              "bsonType": "array"
+            },
+            "expires_at": {
+              "bsonType": "date"
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "send_message_id",
+          "key": {
+            "send.message_id": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "idem_unique",
+          "key": {
+            "idem_key": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "status_updated",
+          "key": {
+            "status": 1,
+            "updated_at": -1
+          }
+        },
+        {
+          "name": "company",
+          "key": {
+            "company_id": 1,
+            "created_at": -1
+          }
+        }
+      ]
+    },
+    "page_tokens": {
+      "purpose": "The unguessable links: a company's page and its unsubscribe link (in a message), and the link that confirms a claim made from a campaign page. Only a SHA-256 of each token is stored, so a copy of the database cannot be used to open a page or unsubscribe someone. Expired tokens are removed by the TTL index.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "purpose",
+            "company_id",
+            "created_at",
+            "expires_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "purpose": {
+              "enum": [
+                "company_page",
+                "unsubscribe",
+                "claim_confirm"
+              ]
+            },
+            "company_id": {
+              "bsonType": "string"
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "message_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "campaign": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "description": "campaign:<code> for a link opened from a campaign landing page"
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "expires_at": {
+              "bsonType": "date"
+            },
+            "pending": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "claim_confirm only: the claim from a campaign page waiting for its email confirmation (the form as given, with the consent wording shown). It leaves with the token: used once, or removed by the TTL index after 48 hours."
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        },
+        {
+          "name": "company_purpose",
+          "key": {
+            "company_id": 1,
+            "purpose": 1
+          }
+        }
+      ]
+    },
+    "channel_templates": {
+      "purpose": "What Meta says about each WhatsApp template (status, category, quality rating), read by `lead-engine whatsapp:templates --sync` and kept current by Meta's webhook. A template is sent only while it is APPROVED here, so a template Meta pauses stops at once (design 7.6).",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "channel",
+            "name",
+            "language",
+            "status",
+            "synced_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^whatsapp:[a-z0-9_]+:[a-zA-Z_]+$"
+            },
+            "channel": {
+              "enum": [
+                "whatsapp"
+              ]
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "language": {
+              "bsonType": "string"
+            },
+            "category": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "bsonType": "string"
+            },
+            "quality": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "meta_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "description": "Meta's reason, when its webhook paused, disabled or rejected the template."
+            },
+            "synced_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": []
+    },
+    "inbound": {
+      "purpose": "Every email that arrived in an outreach mailbox, and every WhatsApp message a founder sent to our number (design 7.5 and 7.6). Emails are read with IMAP EXAMINE, so the mailbox itself is never changed. Each one is matched to the message it answers, classified (reply, auto-reply, bounce, complaint; a reply as interested, not now, unsubscribe, wrong person or question), and acted on: a bounce suppresses the address, an opt-out suppresses it and stops the sequence, and everything a person must answer waits in the Admin inbox. A working collection holding personal data (the sender's address and words): removed by the TTL index after the retention period, and blanked by an erasure request.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "idem_key",
+            "mailbox",
+            "kind",
+            "status",
+            "received_at",
+            "created_at",
+            "updated_at",
+            "expires_at"
+          ],
+          "properties": {
+            "idem_key": {
+              "bsonType": "string",
+              "pattern": "^in:.+$",
+              "description": "in:<mailbox>:<uidvalidity>:<uid> for an email, in:whatsapp:<message id> for WhatsApp"
+            },
+            "channel": {
+              "enum": [
+                "email",
+                "whatsapp"
+              ],
+              "description": "Missing means email (everything read before WhatsApp replies were kept here)."
+            },
+            "mailbox": {
+              "bsonType": "string"
+            },
+            "uid": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 1,
+              "description": "Email only: the IMAP UID."
+            },
+            "uidvalidity": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "header_message_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "in_reply_to": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "references": {
+              "bsonType": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "bsonType": "string"
+              }
+            },
+            "from": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "address": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "subject": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "enum": [
+                "reply",
+                "auto_reply",
+                "bounce",
+                "complaint",
+                "other"
+              ]
+            },
+            "label": {
+              "enum": [
+                "interested",
+                "not_now",
+                "unsubscribe",
+                "wrong_person",
+                "question",
+                "unclear",
+                null
+              ]
+            },
+            "classification": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "label": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "confidence": {
+                  "bsonType": [
+                    "double",
+                    "int",
+                    "null"
+                  ]
+                },
+                "by": {
+                  "enum": [
+                    "rules",
+                    "ai",
+                    "person"
+                  ]
+                },
+                "model": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "version": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "reasons": {
+                  "bsonType": [
+                    "array",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "matched": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "message_id": {
+                  "bsonType": [
+                    "objectId",
+                    "null"
+                  ]
+                },
+                "company_id": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "lead_id": {
+                  "bsonType": [
+                    "objectId",
+                    "null"
+                  ]
+                },
+                "how": {
+                  "enum": [
+                    "in_reply_to",
+                    "references",
+                    "bounce_original",
+                    "address",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "dsn": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "The delivery report of a bounce: recipient, action, status code, diagnostic."
+            },
+            "text": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "description": "The new part of the reply (quoted text removed), at most a few thousand characters."
+            },
+            "status": {
+              "enum": [
+                "new",
+                "needs_person",
+                "handled",
+                "done",
+                "ignored"
+              ],
+              "description": "new while the engine is still acting on it; needs_person until someone has dealt with it; done when the engine dealt with it alone; ignored when it is not about our outreach (warm-up mail, newsletters)."
+            },
+            "actions": {
+              "bsonType": "array",
+              "description": "What the engine did on reading it."
+            },
+            "handled": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "by": {
+                  "bsonType": "string"
+                },
+                "at": {
+                  "bsonType": "date"
+                },
+                "note": {
+                  "bsonType": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "received_at": {
+              "bsonType": "date"
+            },
+            "erased_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "expires_at": {
+              "bsonType": "date"
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "idem_unique",
+          "key": {
+            "idem_key": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "status_received",
+          "key": {
+            "status": 1,
+            "received_at": -1
+          }
+        },
+        {
+          "name": "company_received",
+          "key": {
+            "matched.company_id": 1,
+            "received_at": -1
+          }
+        },
+        {
+          "name": "header_message_id",
+          "key": {
+            "header_message_id": 1
+          },
+          "options": {
+            "sparse": true
+          }
+        },
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        }
+      ]
+    },
+    "calls": {
+      "purpose": "Every AI voice call (design 7.6): only to a founder who asked for a call on the company page, through the voice provider on a DLT-registered number, inside the permitted hours and the month's caps, with an approved script that says at once that it is an AI assistant. One document per attempt, from queued to its outcome. Holds the number called and the transcript, so it is a working collection: removed by the TTL index after the retention period and blanked by an erasure request.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "idem_key",
+            "company_id",
+            "person_id",
+            "purpose",
+            "status",
+            "attempt",
+            "created_at",
+            "updated_at",
+            "expires_at"
+          ],
+          "properties": {
+            "idem_key": {
+              "bsonType": "string",
+              "pattern": "^call:.+$"
+            },
+            "company_id": {
+              "bsonType": "string"
+            },
+            "lead_id": {
+              "bsonType": [
+                "objectId",
+                "null"
+              ]
+            },
+            "person_id": {
+              "bsonType": "objectId"
+            },
+            "purpose": {
+              "enum": [
+                "callback"
+              ]
+            },
+            "to": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "contact_key": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "language": {
+              "enum": [
+                "en",
+                "hi"
+              ]
+            },
+            "slot": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "enum": [
+                "queued",
+                "placing",
+                "placed",
+                "connected",
+                "no_answer",
+                "busy",
+                "failed",
+                "blocked",
+                "cancelled",
+                "unknown"
+              ]
+            },
+            "attempt": {
+              "bsonType": "int",
+              "minimum": 1
+            },
+            "provider": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "provider_attempt_id": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "script_version": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "agent_variables": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "gate": {
+              "bsonType": [
+                "object",
+                "null"
+              ]
+            },
+            "placed_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "ended_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "duration_s": {
+              "bsonType": [
+                "int",
+                "double",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "outcome": {
+              "enum": [
+                "interested",
+                "call_later",
+                "not_interested",
+                "wants_person",
+                "stop",
+                "unclear",
+                null
+              ]
+            },
+            "transcript": {
+              "bsonType": [
+                "array",
+                "null"
+              ]
+            },
+            "failure_reason": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "cost_paise": {
+              "bsonType": [
+                "int",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "history": {
+              "bsonType": "array"
+            },
+            "handled": {
+              "bsonType": [
+                "object",
+                "null"
+              ],
+              "description": "A person dealt with it (made the call, or followed up the outcome): by, at, note."
+            },
+            "erased_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "expires_at": {
+              "bsonType": "date"
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "idem_unique",
+          "key": {
+            "idem_key": 1
+          },
+          "options": {
+            "unique": true
+          }
+        },
+        {
+          "name": "provider_attempt",
+          "key": {
+            "provider_attempt_id": 1
+          },
+          "options": {
+            "unique": true,
+            "partialFilterExpression": {
+              "provider_attempt_id": {
+                "$type": "string"
+              }
+            }
+          }
+        },
+        {
+          "name": "status_updated",
+          "key": {
+            "status": 1,
+            "updated_at": -1
+          }
+        },
+        {
+          "name": "company",
+          "key": {
+            "company_id": 1,
+            "created_at": -1
+          }
+        },
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        }
+      ]
+    },
+    "alerts": {
+      "purpose": "What `lead-engine monitor` found wrong (design 7.10): failed and overdue jobs, bounce and complaint rates, WhatsApp template quality, approval-queue and inbox age, caps nearly used, a stale nightly run, a consent ledger that does not verify. One document per alert key; it is reopened when the problem comes back and resolved when it goes.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "kind",
+            "severity",
+            "status",
+            "message",
+            "first_seen_at",
+            "last_seen_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string"
+            },
+            "kind": {
+              "bsonType": "string"
+            },
+            "severity": {
+              "enum": [
+                "info",
+                "warn",
+                "critical"
+              ]
+            },
+            "status": {
+              "enum": [
+                "open",
+                "resolved"
+              ]
+            },
+            "message": {
+              "bsonType": "string"
+            },
+            "value": {},
+            "threshold": {},
+            "first_seen_at": {
+              "bsonType": "date"
+            },
+            "last_seen_at": {
+              "bsonType": "date"
+            },
+            "resolved_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "notified_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "status_severity",
+          "key": {
+            "status": 1,
+            "severity": 1,
+            "last_seen_at": -1
+          }
+        }
+      ]
+    },
+    "locks": {
+      "purpose": "Short-lived holds that make check-then-act steps safe across workers: 'lead:<company_id>' while a message to that company is being sent (contact budget), and 'ledger:consents', which every consent-ledger transaction updates so that entries are added one at a time. The application can add and update these but never delete one.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "updated_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^(lead|ledger):.+$"
+            },
+            "holder": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "held_until": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "seq": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "hash": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "writes": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "updated_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": []
+    },
+    "email_checks": {
+      "purpose": "The result of checking an address before the first email to it (design 7.3): well formed, not a throwaway domain, the domain receives mail, and the verification service's verdict. Keyed on an HMAC of the address under CONTACT_KEY_SECRET, never the address; each entry expires (30 days, or a day when the check could not be done).",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "result",
+            "provider",
+            "checked_at",
+            "expires_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "domain": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "enum": [
+                "deliverable",
+                "accept_all",
+                "unknown",
+                "unverified",
+                "undeliverable",
+                "disposable",
+                "no_mx",
+                "malformed"
+              ]
+            },
+            "detail": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "provider": {
+              "bsonType": "string"
+            },
+            "checked_at": {
+              "bsonType": "date"
+            },
+            "expires_at": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "expiry",
+          "key": {
+            "expires_at": 1
+          },
+          "options": {
+            "expireAfterSeconds": 0
+          }
+        }
+      ]
+    },
+    "exports": {
+      "purpose": "Bulk exports of company-level data (design 7.11): asked for with a reason, approved or rejected by an admin who is not the person asking, then downloadable by the person who asked for 24 hours. Kept as the record of who took what out of the engine; never deleted.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "status",
+            "requested_by",
+            "reason",
+            "filters",
+            "requested_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^exp_[0-9a-z]{12}$"
+            },
+            "status": {
+              "enum": [
+                "requested",
+                "approved",
+                "rejected",
+                "expired"
+              ]
+            },
+            "requested_by": {
+              "bsonType": "string"
+            },
+            "requested_role": {
+              "enum": [
+                "viewer",
+                "reviewer",
+                "admin"
+              ]
+            },
+            "reason": {
+              "bsonType": "string",
+              "minLength": 10,
+              "maxLength": 500
+            },
+            "filters": {
+              "bsonType": "object"
+            },
+            "include_contacts": {
+              "bsonType": "bool"
+            },
+            "max_rows": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 1,
+              "maximum": 20000
+            },
+            "estimate": {
+              "bsonType": [
+                "int",
+                "long"
+              ],
+              "minimum": 0
+            },
+            "requested_at": {
+              "bsonType": "date"
+            },
+            "decided_by": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "decided_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "decision_note": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "maxLength": 500
+            },
+            "download_until": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "downloads": {
+              "bsonType": "array",
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "at",
+                  "rows"
+                ],
+                "properties": {
+                  "at": {
+                    "bsonType": "date"
+                  },
+                  "rows": {
+                    "bsonType": [
+                      "int",
+                      "long"
+                    ]
+                  },
+                  "sha256": {
+                    "bsonType": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "status_requested",
+          "key": {
+            "status": 1,
+            "requested_at": -1
+          }
+        },
+        {
+          "name": "requester",
+          "key": {
+            "requested_by": 1,
+            "requested_at": -1
+          }
+        }
+      ]
+    },
+    "signals": {
+      "purpose": "Funding news about a UP company (design 7.1 and 7.4, 'Signals'), from news feeds and GDELT (`leadengine ingest news`): a headline whose company name matched exactly one company. Only a proposal until a reviewer confirms or rejects it on the Admin Signals page (the decision is in audit_log); nothing acts on a signal by itself. Holds the headline, link, publisher and date only, never an article's text; news that matched no company is not stored. Keyed on a hash of the article's URL, so reading the same article again changes nothing.",
+      "validator": {
+        "$jsonSchema": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "type",
+            "company_id",
+            "headline",
+            "url",
+            "publisher",
+            "status",
+            "created_at"
+          ],
+          "properties": {
+            "_id": {
+              "bsonType": "string",
+              "pattern": "^news:[0-9a-f]{40}$"
+            },
+            "type": {
+              "enum": [
+                "funding"
+              ]
+            },
+            "company_id": {
+              "bsonType": "string",
+              "pattern": "^([UL][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}|[A-Z]{3}-[0-9]{4})$"
+            },
+            "headline": {
+              "bsonType": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "url": {
+              "bsonType": "string",
+              "pattern": "^https?://"
+            },
+            "publisher": {
+              "bsonType": "string",
+              "maxLength": 100
+            },
+            "published_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "matched_name": {
+              "bsonType": "string",
+              "maxLength": 200
+            },
+            "status": {
+              "enum": [
+                "proposed",
+                "confirmed",
+                "rejected"
+              ]
+            },
+            "created_at": {
+              "bsonType": "date"
+            },
+            "decided_by": {
+              "bsonType": [
+                "string",
+                "null"
+              ]
+            },
+            "decided_at": {
+              "bsonType": [
+                "date",
+                "null"
+              ]
+            },
+            "note": {
+              "bsonType": [
+                "string",
+                "null"
+              ],
+              "maxLength": 500
+            }
+          }
+        }
+      },
+      "indexes": [
+        {
+          "name": "status_created",
+          "key": {
+            "status": 1,
+            "created_at": -1
+          }
+        },
+        {
+          "name": "company_created",
+          "key": {
+            "company_id": 1,
+            "created_at": -1
+          }
+        }
+      ]
+    }
+  }
+}
