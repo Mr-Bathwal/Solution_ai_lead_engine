@@ -93,6 +93,17 @@ describe('the demonstration database', () => {
     assert.equal(await db.collection('audit_log').countDocuments({ action: 'export', 'target.id': ex._id }), 1, 'the download is logged');
   });
 
+  test('funding news: three proposed by the news reader, one confirmed and on its company page, two waiting', async () => {
+    assert.deepEqual([made.signals.proposed, made.signals.confirmed], [2, 1]);
+    const all = await db.collection('signals').find({}).toArray();
+    assert.equal(all.length, 3);
+    assert.ok(all.every((s) => /^news:[0-9a-f]{40}$/.test(s._id) && s.url.startsWith('https://news.demo.example/') && /fictional demo item/.test(s.publisher)));
+    const confirmed = all.find((s) => s.status === 'confirmed');
+    assert.equal(confirmed.company_id, made.signals.confirmed_company);
+    assert.equal(confirmed.decided_by, 'neha.reviewer@solutionai.demo.example');
+    assert.equal(await db.collection('audit_log').countDocuments({ action: 'review_decision', 'target.type': 'signal' }), 1, 'the decision is logged');
+  });
+
   test('labelled pairs and the AI check on a review pair', async () => {
     assert.equal(made.labelled, 3);
     const reviews = await db.collection('match_reviews').find({}).toArray();
@@ -144,9 +155,12 @@ describe('the demonstration database', () => {
     };
     try {
       for (const p of ['/admin', '/admin/shortlist', '/admin/companies', '/admin/approvals', '/admin/inbox', '/admin/calls', '/admin/results',
-        '/admin/review', '/admin/labels', '/admin/health', '/admin/exports', '/admin/mca']) {
+        '/admin/review', '/admin/labels', '/admin/health', '/admin/exports', '/admin/mca', '/admin/signals']) {
         assert.match(await page(p), /Demonstration data: every company, person and address here is invented\./, p);
       }
+      const signals = await page('/admin/signals');
+      assert.match(signals, /fictional demo item/);
+      assert.match(await page(`/admin/companies/${made.signals.confirmed_company}`), /In the news/, 'the confirmed item is on the company page');
       const pipeline = await (await fetch(`${base}/api/pipeline`, { headers: { Authorization: `Bearer ${users[0].token}` } })).json();
       assert.equal(pipeline.shortlist.length, 24);
       const approvals = await (await fetch(`${base}/api/approvals`, { headers: { Authorization: `Bearer ${users[0].token}` } })).json();

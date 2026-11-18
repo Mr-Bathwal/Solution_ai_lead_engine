@@ -15,6 +15,7 @@ import { decideExport, downloadExport, requestExport } from '../admin/exports.js
 import { decideApproval } from '../admin/approvals.js';
 import { recordReview } from '../admin/queries.js';
 import { heldOut } from '../admin/labels.js';
+import { decideSignal } from '../admin/signals.js';
 import { aiCheckPairs } from '../admin/ai_check.js';
 import { LlmGateway } from '../outreach/llm.js';
 
@@ -459,6 +460,28 @@ export async function seedDemo(db, { cfg, log = () => {}, now: realNow = new Dat
   }
   made.labelled = toLabel.length;
   log(`labels: ${toLabel.length} of the matcher's ${linked.length} links labelled same (${toLabel.filter((l) => heldOut(l.entity_key)).length} in the held-out fold)`);
+
+  // 8b. funding news: three items the morning's news reader proposed, in the shape it writes them
+  //     (ingest/src/leadengine/news.py; invented headlines on a .example site); a reviewer confirms one,
+  //     so the company's page shows it, and two wait on the Signals page
+  const title = (n) => n.replace(/ PRIVATE LIMITED$/, '').toLowerCase().replace(/\b[a-z]/g, (ch) => ch.toUpperCase());
+  const newsItems = [
+    [cos[2], (n) => `${n} raises ₹2 crore in a seed round led by angel investors`, 'Inc42'],
+    [cos[5], (n) => `Kanpur-based ${n} secures pre-seed funding from an incubator fund`, 'YourStory'],
+    [cos[11], (n) => `${n} raises $500,000 to expand across Uttar Pradesh`, 'Entrackr'],
+  ];
+  const signalIds = [];
+  for (const [k, [c, headline, publisher]] of newsItems.entries()) {
+    const url = `https://news.demo.example/${c.slug}-funding-${k + 1}`;
+    const id = `news:${createHash('sha256').update(url).digest('hex').slice(0, 40)}`;
+    await db.collection('signals').insertOne({ _id: id, type: 'funding', company_id: c.cin, headline: headline(title(c.name)), url,
+      publisher: `${publisher} (fictional demo item)`, published_at: new Date(clock().getTime() - (k + 1) * DAY), matched_name: title(c.name).toLowerCase(),
+      status: 'proposed', created_at: clock(), decided_by: null, decided_at: null, note: null });
+    signalIds.push(id);
+  }
+  await decideSignal(db, { id: signalIds[0], decision: 'confirm', note: 'the article names the company and its city', user: reviewer, clock });
+  made.signals = { proposed: signalIds.length - 1, confirmed: 1, confirmed_company: newsItems[0][0].cin };
+  log(`funding news: ${signalIds.length} items proposed by the news reader (fictional), 1 confirmed by a reviewer, ${signalIds.length - 1} waiting`);
 
   // 9. the AI check on the unsure pair the matcher rated highest, through a stand-in gateway: its advice
   //    sits beside the candidate on the review page; a person still decides
