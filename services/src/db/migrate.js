@@ -16,7 +16,7 @@ const APPEND_ONLY = ['consents', 'activities', 'source_records', 'audit_log'];
 // Added to and updated, never deleted from: an entry leaves the do-not-contact list only by an
 // admin's decision, locks are released by updating them, and an export request is the record of
 // who took data out of the engine.
-const NO_DELETE = ['suppressions', 'locks', 'exports'];
+const NO_DELETE = ['suppressions', 'locks', 'exports', 'signals'];   // a decided news item, like an export, is a record of a person's decision
 export const APP_ROLE = 'leadEngineApp';
 
 export async function migrate(db, spec, { rebuildIndexes = false, allowUniqueGap = false, log = () => {} } = {}) {

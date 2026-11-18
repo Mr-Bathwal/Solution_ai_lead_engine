@@ -6,7 +6,7 @@
   "data": {"_comment": "MCA publishes the month's incorporation file in the first days of the next month; after this day (IST) its absence is an alert.", "mca_file_due_day_ist": 6},
   "email": {"bounce_pct_warn": 1.5, "complaint_pct_warn": 0.05},
   "caps": {"used_pct_warn": 80},
-  "runs": {"_comment": "Hours after which a source's last run counts as stale: the nightly batch (which includes the need engine) daily, the portals weekly (ops/SCHEDULE.md). Startup India is not scheduled, so it is not watched.", "stale_hours": {"nightly": 36, "kb": 36, "startinup": 200, "upsm": 200, "incubator": 200}},
+  "runs": {"_comment": "Hours after which a source's last run counts as stale: the nightly batch (which includes the need engine) daily, the portals weekly, funding news daily (ops/SCHEDULE.md). Startup India is not scheduled, so it is not watched.", "stale_hours": {"nightly": 36, "kb": 36, "startinup": 200, "upsm": 200, "incubator": 200, "news": 36}},
   "llm": {"failed_calls_24h_warn": 5},
   "backups": {"_comment": "Checked only where the backup folder exists (the server): the newest full backup (nightly) and critical one (hourly).", "full_stale_hours": 30, "critical_stale_hours": 3},
   "whatsapp": {"quality_warn": ["YELLOW", "MEDIUM"], "quality_critical": ["RED", "LOW"], "status_critical": ["PAUSED", "DISABLED", "REJECTED"]},

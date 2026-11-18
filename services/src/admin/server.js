@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { SESSION_HOURS, can } from './auth.js';
 import { auditPersonalView, companyView, listCompanies, pipeline, recordReview, reviewQueue } from './queries.js';
 import { approvalPage, approvalsPage, callPage, callsPage, companiesPage, companyPage, errorPage, healthPage, inboxItemPage, inboxPage, auditPage, exportsPage, labelsPage, loginPage, mcaPage, pipelinePage,
@@ -62,6 +63,9 @@ export function istMonth(at = new Date()) {
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
+/** The body hash a platform-signed request carries, kept per request until its body is read. */
+const signedBody = new WeakMap();
+
 function readBytes(req, limit = MAX_BODY) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -74,8 +78,13 @@ function readBytes(req, limit = MAX_BODY) {
     });
     req.on('end', () => {
       ended = true;
-      if (size > limit) reject(httpError(413, 'body too large'));
-      else resolve(Buffer.concat(chunks));
+      if (size > limit) return reject(httpError(413, 'body too large'));
+      const body = Buffer.concat(chunks);
+      // a request signed by the platform's proxy: the body must be the one it signed
+      if (signedBody.has(req) && createHash('sha256').update(body).digest('hex') !== signedBody.get(req)) {
+        return reject(httpError(401, 'the body does not match the platform signature'));
+      }
+      return resolve(body);
     });
     req.on('error', reject);
     req.on('close', () => { if (!ended) reject(httpError(400, 'request aborted')); });
@@ -140,7 +149,8 @@ export function createAdminServer({ db, auth, log = console, clock = () => new D
 
   async function ctxFor(user, notice) {
     const [reviewWaiting, approvalsWaiting, inboxWaiting, callsWaiting] = await Promise.all([
-      db.collection('entity_links').countDocuments({ status: 'review' }),
+      // the Review page holds the matches to check and the news to confirm
+      Promise.all([db.collection('entity_links').countDocuments({ status: 'review' }), db.collection('signals').countDocuments({ status: 'proposed' })]).then(([a, b]) => a + b),
       db.collection('messages').countDocuments({ status: { $in: ['awaiting_approval', 'qc_failed'] } }),
       db.collection('inbound').countDocuments({ status: 'needs_person' }),
       db.collection('calls').countDocuments({ $or: [{ status: { $in: ['blocked', 'failed', 'unknown'] } }, { outcome: { $in: ['interested', 'wants_person', 'call_later'] } }],
@@ -233,6 +243,7 @@ export function createAdminServer({ db, auth, log = console, clock = () => new D
       if (who.count !== false && await refused(address, who.via, who.refused)) return json(res, 429, { error: 'too many failed attempts; wait a minute' });
       return isApi || who.via !== 'platform' ? json(res, who.status ?? 401, { error: who.refused }) : send(res, who.status ?? 401, who.refused, 'text/plain');
     }
+    if (who.bodySha256) signedBody.set(req, who.bodySha256);
     let user = who.user ?? null;
     if (user && await auth.isRevoked(db, user)) user = null;
     if (!user) return isApi ? json(res, 401, { error: 'sign-in required' }) : redirect(res, '/admin/login');

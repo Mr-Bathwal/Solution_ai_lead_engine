@@ -422,7 +422,7 @@ describe('signing in through the platform', () => {
   const svc = newServiceToken('portal', 'reviewer');
   let s;
   let at;
-  const ph = (user, role, method, target, extra = {}) => ({ ...platformHeaders(PSECRET, { user, role, method, target, at: pnow }), ...extra });
+  const ph = (user, role, method, target, extra = {}, body = '') => ({ ...platformHeaders(PSECRET, { user, role, method, target, at: pnow, body }), ...extra });
   const from = (ip) => ({ 'X-Forwarded-For': ip });
 
   before(async () => {
@@ -485,7 +485,11 @@ describe('signing in through the platform', () => {
     const who = 'priya@solutionai.in';
     const page = await (await get('/admin/review', ph(who, 'reviewer', 'GET', '/admin/review'), at)).text();
     const csrf = /name="csrf" value="([^"]+)"/.exec(page)[1];
-    const out = (form, origin) => postForm('/admin/logout', form, ph(who, 'reviewer', 'POST', '/admin/logout', origin ? { Origin: origin } : {}), at);
+    const out = (form, origin) => postForm('/admin/logout', form, ph(who, 'reviewer', 'POST', '/admin/logout', origin ? { Origin: origin } : {}, new URLSearchParams(form).toString()), at);
+    // headers captured from one post cannot carry another body
+    const swapped = await postForm('/admin/logout', { csrf, extra: 'x' }, ph(who, 'reviewer', 'POST', '/admin/logout', { Origin: PORTAL }, new URLSearchParams({ csrf }).toString()), at);
+    assert.equal(swapped.status, 401);
+    assert.match(await swapped.text(), /does not match the platform signature/);
     assert.equal((await out({})).status, 403, 'no CSRF token');
     assert.equal((await out({ csrf }, 'https://evil.example')).status, 403, 'another site');
     const r = await out({ csrf }, PORTAL);

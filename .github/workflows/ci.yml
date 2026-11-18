@@ -1,6 +1,8 @@
 # Runs both test suites on every push and pull request. The tests start their own throwaway mongod
 # (a single-node replica set, and a second one with access control for the role checks), so the job
-# only needs the mongod binary on PATH; no real network calls are made by any test.
+# only needs the mongod binary on PATH; no real network calls are made by any test. A failing run
+# lists the failing tests in the run's summary and as annotations, so they can be read without
+# downloading the log.
 name: tests
 
 on:
@@ -25,8 +27,8 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -37,16 +39,22 @@ jobs:
           echo "$RUNNER_TEMP/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}/bin" >> "$GITHUB_PATH"
       - run: npm ci
         working-directory: services
-      - run: npm test
+      - name: npm test
         working-directory: services
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$RUNNER_TEMP/test.log"
+      - name: failing tests
+        if: failure()
+        run: bash .github/workflows/report-failures.sh "$RUNNER_TEMP/test.log"
 
   ingest:
     name: ingest (Python)
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -57,5 +65,11 @@ jobs:
           echo "$RUNNER_TEMP/mongodb-linux-x86_64-ubuntu2204-${MONGODB_VERSION}/bin" >> "$GITHUB_PATH"
       - run: pip install -e ".[dev]"
         working-directory: ingest
-      - run: python -m pytest
+      - name: pytest
         working-directory: ingest
+        run: |
+          set -o pipefail
+          python -m pytest -o addopts="" -q -rf 2>&1 | tee "$RUNNER_TEMP/test.log"
+      - name: failing tests
+        if: failure()
+        run: bash .github/workflows/report-failures.sh "$RUNNER_TEMP/test.log"

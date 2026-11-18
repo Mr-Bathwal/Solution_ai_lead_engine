@@ -56,13 +56,15 @@ function same(a, b) {
  *
  * 1. The platform's proxy signs who the person is, on every request it forwards (PLATFORM_SSO_SECRET):
  *
- *      X-Platform-User:      you@solutionai.in
- *      X-Platform-Role:      viewer | reviewer | admin
- *      X-Platform-Time:      1763020800                    (Unix seconds; within 2 minutes of ours)
- *      X-Platform-Signature: sha256=<hex HMAC-SHA256 of "v1\n<time>\n<METHOD>\n<target>\n<user>\n<role>">
+ *      X-Platform-User:        you@solutionai.in
+ *      X-Platform-Role:        viewer | reviewer | admin
+ *      X-Platform-Time:        1763020800                  (Unix seconds; within 2 minutes of ours)
+ *      X-Platform-Body-SHA256: <hex SHA-256 of the body as forwarded; of nothing for a GET>
+ *      X-Platform-Signature:   sha256=<hex HMAC-SHA256 of "v2\n<time>\n<METHOD>\n<target>\n<user>\n<role>\n<body hash>">
  *
- *    where <target> is the request target exactly as sent to the engine (path and query). A captured
- *    header set is good for that one request for two minutes, nothing else.
+ *    where <target> is the request target exactly as sent to the engine (path and query). The server
+ *    checks the body it reads against the signed hash, so a captured header set is good for that one
+ *    request, with that body, for two minutes, nothing else.
  *
  * 2. The portal's backend calls the JSON API with a service token and names the person:
  *
@@ -95,15 +97,19 @@ export function newServiceToken(name, role) {
   return { token, entry: `${name},${role},${sha256(token)}` };
 }
 
-export function platformSignature(secret, { time, method, target, user, role }) {
-  return `sha256=${createHmac('sha256', secret).update(`v1\n${time}\n${method}\n${target}\n${user}\n${role}`).digest('hex')}`;
+/** The SHA-256 of an empty body: what a request without one signs. */
+export const EMPTY_BODY_SHA256 = sha256('');
+
+export function platformSignature(secret, { time, method, target, user, role, bodySha256 = EMPTY_BODY_SHA256 }) {
+  return `sha256=${createHmac('sha256', secret).update(`v2\n${time}\n${method}\n${target}\n${user}\n${role}\n${bodySha256}`).digest('hex')}`;
 }
 
-/** The four headers the platform's proxy adds (the reference for its developers, and for tests and curl). */
-export function platformHeaders(secret, { user, role, method = 'GET', target, at = new Date() }) {
+/** The five headers the platform's proxy adds (the reference for its developers, and for tests and curl). */
+export function platformHeaders(secret, { user, role, method = 'GET', target, at = new Date(), body = '' }) {
   const time = String(Math.floor(at.getTime() / 1000));
-  return { 'X-Platform-User': user, 'X-Platform-Role': role, 'X-Platform-Time': time,
-    'X-Platform-Signature': platformSignature(secret, { time, method: method.toUpperCase(), target, user, role }) };
+  const bodySha256 = createHash('sha256').update(body).digest('hex');
+  return { 'X-Platform-User': user, 'X-Platform-Role': role, 'X-Platform-Time': time, 'X-Platform-Body-SHA256': bodySha256,
+    'X-Platform-Signature': platformSignature(secret, { time, method: method.toUpperCase(), target, user, role, bodySha256 }) };
 }
 
 export class Auth {
@@ -159,13 +165,14 @@ export class Auth {
     if (!this.platformSecret) return { refused: 'signing in through the platform is not set up on this server (PLATFORM_SSO_SECRET)', via: 'platform' };
     const h = req.headers;
     const raw = (k) => (typeof h[k] === 'string' ? h[k].trim() : '');
-    const [user, role, time, sig] = ['x-platform-user', 'x-platform-role', 'x-platform-time', 'x-platform-signature'].map(raw);
-    if (!/^\d{9,11}$/.test(time) || !/^sha256=[0-9a-f]{64}$/.test(sig)) return { refused: 'bad platform signature', via: 'platform' };
-    if (!same(sig, platformSignature(this.platformSecret, { time, method: req.method, target: req.url, user, role }))) return { refused: 'bad platform signature', via: 'platform' };
+    const [user, role, time, sig, bodySha256] = ['x-platform-user', 'x-platform-role', 'x-platform-time', 'x-platform-signature', 'x-platform-body-sha256'].map(raw);
+    if (!/^\d{9,11}$/.test(time) || !/^sha256=[0-9a-f]{64}$/.test(sig) || !/^[0-9a-f]{64}$/.test(bodySha256)) return { refused: 'bad platform signature', via: 'platform' };
+    if (!same(sig, platformSignature(this.platformSecret, { time, method: req.method, target: req.url, user, role, bodySha256 }))) return { refused: 'bad platform signature', via: 'platform' };
     if (Math.abs(this.clock().getTime() / 1000 - Number(time)) > PLATFORM_SKEW_S) return { refused: 'platform signature too old or from the future (check both clocks)', via: 'platform' };
     if (!EMAIL.test(user)) return { refused: 'X-Platform-User must be an email address', status: 400, count: false };
     if (!ROLES.includes(role)) return { refused: `X-Platform-Role must be one of ${ROLES.join(', ')}`, status: 403, count: false };
-    return { user: { email: user.toLowerCase(), role, via: 'platform' } };
+    // the body is read later: the server checks it against this signed hash (server.js, readBytes)
+    return { user: { email: user.toLowerCase(), role, via: 'platform' }, bodySha256 };
   }
 
   userForToken(token) {

@@ -44,3 +44,7 @@ ops/founder_conversations.csv
 # The architecture documents are marked "Internal" (prepared for the client's technical review); they stay
 # out of the public repository until the owner decides otherwise.
 design/
+
+# the built demo snapshot (ops/demo-site/build.mjs); rebuilt from the demo database, deployed, not kept
+ops/demo-site/out/
+.vercel/
