@@ -39,7 +39,7 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
   | Quality check catches deliberately broken drafts (24 kinds) | 59.6% | 99.9% |
   | Compliance gate decides 39 hard cases as expected | 36/39 | 39/39 |
   | Planted personal data reaching an outside service | 2 leaks (reply classification) | none |
-  | Matching on 48 hard name pairs | precision 100%, recall 47% | unchanged |
+  | Matching on 48 hard name pairs: wrong links; same-company pairs a person gets to see | 0; 29 of 34 | 0; 33 of 34 |
   | Websites confirmed right (30 cases); directories and social networks refused | 27/30; 22/23 | 30/30; 23/23 |
   | Docs agree with the code | 4 mismatches | 0 |
 
@@ -64,11 +64,12 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
 - **No AI draft has been measured.** There is no LLM key yet, so every draft so far is a reviewed
   template. The quality check's 99.9% is the protection; the AI drafter itself should be judged on
   its first few hundred drafts before sample approval is switched on.
-- **Matching misses half of the hard pairs.** Precision is 100% (it never linked two different
-  businesses in the eval), but recall on deliberately hard pairs is 47%: spelling variants of the same
-  name in Roman script (Laxmi and Lakshmi, Shri and Shree) and Devanagari are not even put to a
-  reviewer. That costs coverage, not correctness. A variant-aware candidate step that only feeds the
-  review queue is the next improvement here.
+- **Matching links only what it is sure of.** It never linked two different businesses in the eval,
+  and links about half of the deliberately hard pairs on its own; the rest go to a person. Spelling
+  variants of the same name (Laxmi and Lakshmi, Shri and Shree, doubled vowels) now reach the review
+  queue, never an automatic link, so 33 of the 34 same-company pairs are either linked or put to a
+  person. The one still missed is a name written in Devanagari against its registered English
+  spelling: that needs a transliteration step, the next improvement here.
 - **The rules are provisional.** Deadlines and schemes are shown to founders only after the CA confirms
   them; until then nothing about them is sent.
 - **Legal questions are open.** The Hindi wording, writing to addresses on companies' own websites, and
@@ -86,6 +87,6 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
 1. Launch the email loop on staging (`staging:smoke`) the day a mailbox exists, then the first real
    week with every draft approved by a person.
 2. Label the first 100 real replies and run `eval:replies --real`; tune nothing on them.
-3. Add the variant-aware review candidates to matching, and re-run `evals/ingest_matching.py`.
+3. Transliterate Devanagari portal names before matching, and re-run `evals/ingest_matching.py`.
 4. Re-run `node evals/run.mjs` after every change to drafting, the quality check or the gate; it
    takes 15 seconds.

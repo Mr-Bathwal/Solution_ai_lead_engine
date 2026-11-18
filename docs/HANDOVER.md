@@ -153,7 +153,7 @@ About 45 minutes, with Sujas and Murari's team, on 25 November. Bring the server
 ## Tests
 
 - **`services`:** `npm test`, 261 tests against a throwaway MongoDB.
-- **`ingest`:** `.venv/bin/python -m pytest`, 274 tests.
+- **`ingest`:** `.venv/bin/python -m pytest`, 275 tests.
 - **On every push:** GitHub Actions runs both suites on Linux with a real mongod (`.github/workflows/ci.yml`).
 - **The four test sets:** `eval:qc`, `eval:replies`, `leadengine eval extraction` and `leadengine kb eval`.
 

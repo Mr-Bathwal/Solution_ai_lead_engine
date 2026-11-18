@@ -1,6 +1,6 @@
 # Lead engine evals: report
 
-Run 2026-11-18T19:59:09.093Z (IST 2026-11-19 01:29), 14.4 s, by `node evals/run.mjs`. What each eval measures and how to read it: `evals/README.md`. Machine-readable: `evals/report.json`.
+Run 2026-11-18T20:08:03.204Z (IST 2026-11-19 01:38), 22.6 s, by `node evals/run.mjs`. What each eval measures and how to read it: `evals/README.md`. Machine-readable: `evals/report.json`.
 
 ## Scorecard
 
@@ -10,7 +10,7 @@ Run 2026-11-18T19:59:09.093Z (IST 2026-11-19 01:29), 14.4 s, by `node evals/run.
 | 2. QC sensitivity | eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1353/1354 (99.9%); 0 of 24 mutation types never caught |
 | 3. Compliance gate | 39/39 cases agree (100.0%); 0 disagreement(s), 0 harness error(s) |
 | 4. Privacy egress | 13 outside calls over 6 services; no canary left the engine |
-| 5. Matching and websites | 48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 29/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean |
+| 5. Matching and websites | 48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 33/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean |
 | 6. Docs agree with the code | 243 items checked; 0 mismatch(es) |
 
 ## Findings
@@ -31,8 +31,8 @@ Most severe first. Each was observed in this run; the file:line points at the co
 
 ### 3. [Low] Transliteration variants of the same name are not even put in front of a reviewer
 
-- **Where:** ingest/src/leadengine/names.py:53, ingest/src/leadengine/kb/match.py:361
-- **Failing cases:** translit.shri_shree: not linked (best candidate too weak or contradicted), translit.laxmi_lakshmi: not linked (no company with a similar name in the CIN universe we hold), translit.devanagari: not linked (no company with a similar name in the CIN universe we hold), translit.compound_word: not linked (no company with a similar name in the CIN universe we hold), translit.two_vowels: not linked (no company with a similar name in the CIN universe we hold)
+- **Where:** ingest/src/leadengine/names.py:73, ingest/src/leadengine/kb/match.py:376
+- **Failing cases:** translit.devanagari: not linked (no company with a similar name in the CIN universe we hold)
 - **Why it matters:** Laxmi/Lakshmi, Shri/Shree, a name typed in Devanagari: the founder's company is in the universe but no candidate reaches the review queue, so the startup stays unlinked and its facts never join the company record. Precision is unharmed; recall on Hindi-belt names is.
 
 ## 1. Draft factuality and lawfulness
@@ -177,8 +177,8 @@ Canary personal data (fixtures/canaries.json) planted in the company record, the
 
 | Run | Links | Wrong links | Precision | Recall | Same pairs linked or sent to review | Seconds |
 |---|---|---|---|---|---|---|
-| exact_and_splink | 16 | 0 | 100.0% | 47.1% | 29/34 | 1.2 |
-| exact_only | 16 | 0 | 100.0% | 47.1% | 18/34 | 0 |
+| exact_and_splink | 16 | 0 | 100.0% | 47.1% | 33/34 | 1.8 |
+| exact_only | 16 | 0 | 100.0% | 47.1% | 23/34 | 0 |
 
 **Every miss (exact_and_splink):**
 
@@ -190,13 +190,13 @@ Canary personal data (fixtures/canaries.json) planted in the company record, the
 | spacing.joined_generic | spacing and punctuation | same | review | typo | probability below the automatic threshold |
 | typo.distinctive_word | spelling slip | same | review | typo | probability below the automatic threshold |
 | typo.generic_word | spelling slip | same | review | same | probability below the automatic threshold |
-| typo.doubled_letter | spelling slip | same | review | typo | probability below the automatic threshold |
-| translit.shri_shree | Hindi and English transliteration | same | not linked | different | best candidate too weak or contradicted |
-| translit.laxmi_lakshmi | Hindi and English transliteration | same | not linked | different | no company with a similar name in the CIN universe we hold |
+| typo.doubled_letter | spelling slip | same | review | typo | the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business |
+| translit.shri_shree | Hindi and English transliteration | same | review | different | the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business |
+| translit.laxmi_lakshmi | Hindi and English transliteration | same | review | different | the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business |
 | translit.devanagari | Hindi and English transliteration | same | not linked | different | no company with a similar name in the CIN universe we hold |
 | translit.krushi_krishi | Hindi and English transliteration | same | review | typo | probability below the automatic threshold |
-| translit.compound_word | Hindi and English transliteration | same | not linked | different | no company with a similar name in the CIN universe we hold |
-| translit.two_vowels | Hindi and English transliteration | same | not linked | different | no company with a similar name in the CIN universe we hold |
+| translit.compound_word | Hindi and English transliteration | same | review | different | the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business |
+| translit.two_vowels | Hindi and English transliteration | same | review | different | the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business |
 | plural.solar_solars | spacing and punctuation | same | review | typo | probability below the automatic threshold |
 | plural.technologies | spacing and punctuation | same | review | same | probability below the automatic threshold |
 | ignorable.the_company | spacing and punctuation | same | review | same | probability below the automatic threshold |
@@ -248,7 +248,7 @@ Canary personal data (fixtures/canaries.json) planted in the company record, the
 - **OpenAPI:** 21 paths (18 served by the engine): every engine path is served and every platform path has a client. Admin JSON routes not in the contract (informational): none.
 - **.env.example:** 82 variables documented, 69 read by the code. Read but not documented: none. Documented but never read by the code: EXPORT_S3_URI (read by ops/deploy scripts only).
 - **Config files:** 13 referenced, 11 parsed: all exist and parse.
-- **Test counts:** real 260 Node (static count of test( and it( calls in services/test/*.test.js) and 274 Python (pytest --collect-only (collects, runs nothing)). Quoted: README.md:13 node 261, python 274, total 535; docs/HANDOVER.md:155 node 261; docs/HANDOVER.md:156 python 274. All close.
+- **Test counts:** real 260 Node (static count of test( and it( calls in services/test/*.test.js) and 275 Python (pytest --collect-only (collects, runs nothing)). Quoted: README.md:13 node 261, python 275, total 536; docs/HANDOVER.md:155 node 261; docs/HANDOVER.md:156 python 275. All close.
 
 ## Limits of this run
 

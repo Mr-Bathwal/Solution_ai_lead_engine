@@ -50,6 +50,26 @@ def one_edit(a: str, b: str) -> bool:
     return a[i:] == b[i + 1:]
 
 
+# Indian names written in Roman script several ways: Shri, Shree, Sri and Sree; Lakshmi and Laxmi; Deepak and
+# Dipak; Pooja and Puja; Vinod and Winod. One spelling for each, so such names can be put to a reviewer.
+_HONORIFIC = {"shri", "shree", "sri", "sree", "shrii", "shre"}
+_SPELLING = (("ksh", "x"), ("aa", "a"), ("ee", "i"), ("ii", "i"), ("oo", "u"), ("uu", "u"), ("w", "v"), ("ph", "f"), ("q", "k"))
+
+
+def variant_key(clean: str) -> str:
+    """The name with each word in one spelling: "shree lakshmi agro" and "sri laxmi agro" -> "shri laxmi agro".
+    Used only to find names a reviewer should see side by side, never to link them."""
+    out = []
+    for tok in (clean or "").split():
+        if tok in _HONORIFIC:
+            out.append("shri")
+            continue
+        for a, b in _SPELLING:
+            tok = tok.replace(a, b)
+        out.append(tok)
+    return " ".join(out)
+
+
 def typo_of(a: str, b: str) -> bool:
     """True if one distinctive word is a plausible slip of the other: one edit apart, at least five
     letters, the same first letter, and a letter added at the very end only if it doubles the one

@@ -309,3 +309,25 @@ def test_the_self_tests_score_with_the_nightly_model_and_report_honestly(db, raw
                                     sample=4, folds=4)
     assert loo["cases"] == 4 and loo["cases_with_sibling"] == 2
     assert loo["wrong_links"] == 0, "PRAVARON TECHNOLOGIES is never taken for PRAVARON GLOBAL, nor the other way"
+
+
+def test_the_same_name_in_another_spelling_goes_to_a_person_never_linked():
+    from leadengine.names import variant_key
+    assert variant_key("shree lakshmi agro") == variant_key("sri laxmi agro") == "shri laxmi agro"
+    assert variant_key("deepak foods") == variant_key("dipak foods")
+    shree = C("U01100UP2026PTC000101", "SHREE TANMAYO AGRO PRIVATE LIMITED")
+    lakshmi = C("U10790UP2026PTC000102", "LAKSHMI UDBHAV FOODS PRIVATE LIMITED")
+    other = C("U10790UP2026PTC000103", "LAKSHMI UDBHAV FOODS LLP", kind="llp")
+    index = _index(shree, lakshmi, other)
+    for name, cid in (("Shri Tanmayo Agro Pvt Ltd", shree.id), ("Laxmi Udbhav Foods Pvt Ltd", lakshmi.id)):
+        s = S(name)
+        cands = match.variant_candidates(s, index)
+        assert [c.company_id for c in cands] == [cid], "the same legal form only"
+        d = match.decide(s, index, [], cands, {})
+        assert (d.status, d.company_id) == ("review", None)
+        assert "another spelling" in d.evidence["why_review"]
+    # an exact name needs no variants, and a variant never outweighs a person's "different"
+    assert match.variant_candidates(S("Shree Tanmayo Agro Pvt Ltd"), index) == []
+    d = match.decide(S("Shri Tanmayo Agro Pvt Ltd"), index, [], match.variant_candidates(S("Shri Tanmayo Agro Pvt Ltd"), index),
+                     {shree.id: {"decision": "different", "decided_by": "r@x.in"}})
+    assert d.status == "unlinked"

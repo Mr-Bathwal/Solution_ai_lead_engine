@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
 from ..ids import parse_cin
-from ..names import IGNORABLE, canonical, is_generic, normalize_name, typo_of
+from ..names import IGNORABLE, canonical, is_generic, normalize_name, typo_of, variant_key
 from ..web import company_domain
 from .entities import Startup
 
@@ -140,10 +140,12 @@ class CompanyIndex:
         self.by_exact = defaultdict(list)
         self.by_clean = defaultdict(list)
         self.by_key = defaultdict(list)
+        self.by_variant = defaultdict(list)
         for c in companies:
             self.by_exact[(c.clean, c.form)].append(c)
             self.by_clean[c.clean].append(c)
             self.by_key[c.key].append(c)
+            self.by_variant[variant_key(c.clean)].append(c)
 
     @classmethod
     def load(cls, db, extra: list[Company] = ()) -> "CompanyIndex":
@@ -338,6 +340,19 @@ def exact_candidates(s: Startup, index: CompanyIndex) -> list[Candidate]:
             if c.id not in seen and form and c.form and form != c.form:
                 seen[c.id] = Candidate(c.id, 0.5, "same_name", {"name": c.name, "matched_on": "same name, different legal form"})
                 out.append(seen[c.id])
+    return out
+
+
+def variant_candidates(s: Startup, index: CompanyIndex) -> list[Candidate]:
+    """The same name in another spelling ("Shri Lakshmi Agro" and "Sree Laxmi Agro"), with the same legal form
+    or none given. Never linked automatically: a person sees the two side by side."""
+    out, seen = [], set()
+    for clean, form, _ in s.name_keys():
+        for c in index.by_variant.get(variant_key(clean), []):
+            if c.id in seen or c.clean == clean or (form and c.form and form != c.form):
+                continue
+            seen.add(c.id)
+            out.append(Candidate(c.id, 0.5, "variant_name", {"name": c.name, "matched_on": "the same name in another spelling"}))
     return out
 
 
@@ -724,7 +739,7 @@ def production_params(startups: dict[str, Startup], index: CompanyIndex, *, labe
 
 # ---- decisions -----------------------------------------------------------------------------------
 
-_METHOD_ORDER = {"exact_name": 0, "same_name": 1}
+_METHOD_ORDER = {"exact_name": 0, "same_name": 1, "variant_name": 1}
 
 
 def decide(s: Startup, index: CompanyIndex, exact: list[Candidate], fuzzy: list[Candidate],
@@ -778,6 +793,10 @@ def decide(s: Startup, index: CompanyIndex, exact: list[Candidate], fuzzy: list[
 
     if top.method == "same_name":
         ev["why_review"] = "same name under another legal form; confirm it is the same business"
+        return Decision(s.key, "review", None, "review", None, shown, ev)
+
+    if top.method == "variant_name":
+        ev["why_review"] = "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business"
         return Decision(s.key, "review", None, "review", None, shown, ev)
 
     if top.company_id in unsure:
@@ -894,8 +913,11 @@ def match_all(startups: dict[str, Startup], index: CompanyIndex, *, reviews: dic
         rest = [s for k, s in startups.items() if not exact[k]]
         fuzzy, model = splink_candidates(rest, index, prior=prior if prior is not None else production_prior(startups, index, exact),
                                          labels=labels, label_startups=startups, log=log)
-    decisions = {k: decide(s, index, exact[k], fuzzy.get(k, []), reviews.get(k, {})) for k, s in startups.items()}
-    own = {k: decide(s, index, exact[k], fuzzy.get(k, []), {}) for k, s in startups.items()}
+    # spelling variants only feed the review queue; a startup with an exact name does not need them
+    variants = {k: [] if exact[k] else variant_candidates(s, index) for k, s in startups.items()}
+    # (ahead of Splink's score for the same pair, so a weak score cannot hide the spelling from a person)
+    decisions = {k: decide(s, index, exact[k], variants[k] + fuzzy.get(k, []), reviews.get(k, {})) for k, s in startups.items()}
+    own = {k: decide(s, index, exact[k], variants[k] + fuzzy.get(k, []), {}) for k, s in startups.items()}
     model["one_to_one_sent_to_review"] = one_to_one(decisions, index)
     one_to_one(own, index)
     return decisions, own, model

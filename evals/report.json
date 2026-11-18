@@ -1,8 +1,8 @@
 {
  "meta": {
-  "at": "2026-11-18T19:59:09.093Z",
-  "ist": "2026-11-19 01:29",
-  "seconds": 14.4,
+  "at": "2026-11-18T20:08:03.204Z",
+  "ist": "2026-11-19 01:38",
+  "seconds": 22.6,
   "harnessErrors": [],
   "blocked": []
  },
@@ -25,7 +25,7 @@
   ],
   [
    "5. Matching and websites",
-   "48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 29/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean"
+   "48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 33/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean"
   ],
   [
    "6. Docs agree with the code",
@@ -62,15 +62,11 @@
    "severity": 4,
    "title": "Transliteration variants of the same name are not even put in front of a reviewer",
    "where": [
-    "ingest/src/leadengine/names.py:53",
-    "ingest/src/leadengine/kb/match.py:361"
+    "ingest/src/leadengine/names.py:73",
+    "ingest/src/leadengine/kb/match.py:376"
    ],
    "failing": [
-    "translit.shri_shree: not linked (best candidate too weak or contradicted)",
-    "translit.laxmi_lakshmi: not linked (no company with a similar name in the CIN universe we hold)",
-    "translit.devanagari: not linked (no company with a similar name in the CIN universe we hold)",
-    "translit.compound_word: not linked (no company with a similar name in the CIN universe we hold)",
-    "translit.two_vowels: not linked (no company with a similar name in the CIN universe we hold)"
+    "translit.devanagari: not linked (no company with a similar name in the CIN universe we hold)"
    ],
    "why": "Laxmi/Lakshmi, Shri/Shree, a name typed in Devanagari: the founder's company is in the universe but no candidate reaches the review queue, so the startup stays unlinked and its facts never join the company record. Precision is unharmed; recall on Hindi-belt names is."
   }
@@ -1418,11 +1414,11 @@
      ]
     }
    },
-   "seconds": 2
+   "seconds": 2.1
   },
   "database": {
    "ok": true,
-   "seconds": 2.5
+   "seconds": 8.3
   },
   "gate": {
    "cases": 39,
@@ -2034,7 +2030,7 @@
     }
    ],
    "disagreements": [],
-   "seconds": 4.2
+   "seconds": 5.5
   },
   "privacy": {
    "paths": [
@@ -2169,7 +2165,7 @@
    "cfg_used": {
     "llm": true
    },
-   "seconds": 0.5
+   "seconds": 0.6
   },
   "docs": {
    "items": 243,
@@ -2206,8 +2202,8 @@
    "tests": {
     "real": {
      "node": 260,
-     "python": 274,
-     "total": 534,
+     "python": 275,
+     "total": 535,
      "node_how": "static count of test( and it( calls in services/test/*.test.js",
      "python_how": "pytest --collect-only (collects, runs nothing)"
     },
@@ -2215,8 +2211,8 @@
      {
       "where": "README.md:13",
       "node": 261,
-      "python": 274,
-      "total": 535
+      "python": 275,
+      "total": 536
      },
      {
       "where": "docs/HANDOVER.md:155",
@@ -2224,12 +2220,12 @@
      },
      {
       "where": "docs/HANDOVER.md:156",
-      "python": 274
+      "python": 275
      }
     ],
     "mismatches": []
    },
-   "seconds": 2.2
+   "seconds": 2.5
   },
   "matching": {
    "matching": {
@@ -2252,7 +2248,7 @@
       "wrong_links": 0,
       "precision": 1,
       "recall": 0.4706,
-      "same_pairs_linked_or_sent_to_review": "29/34",
+      "same_pairs_linked_or_sent_to_review": "33/34",
       "wrong_links_list": [],
       "misses": [
        {
@@ -2308,23 +2304,23 @@
         "category": "spelling slip",
         "label": "same",
         "outcome": "review",
-        "why": "probability below the automatic threshold",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "typo"
        },
        {
         "id": "translit.shri_shree",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "best candidate too weak or contradicted",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
         "id": "translit.laxmi_lakshmi",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
@@ -2347,16 +2343,16 @@
         "id": "translit.compound_word",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
         "id": "translit.two_vowels",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
@@ -2400,7 +2396,7 @@
         "name_agreement": "same"
        }
       ],
-      "seconds": 1.2,
+      "seconds": 1.8,
       "pairs_scored": 20
      },
      "exact_only": {
@@ -2409,7 +2405,7 @@
       "wrong_links": 0,
       "precision": 1,
       "recall": 0.4706,
-      "same_pairs_linked_or_sent_to_review": "18/34",
+      "same_pairs_linked_or_sent_to_review": "23/34",
       "wrong_links_list": [],
       "misses": [
        {
@@ -2464,24 +2460,24 @@
         "id": "typo.doubled_letter",
         "category": "spelling slip",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "typo"
        },
        {
         "id": "translit.shri_shree",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
         "id": "translit.laxmi_lakshmi",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
@@ -2504,16 +2500,16 @@
         "id": "translit.compound_word",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
         "id": "translit.two_vowels",
         "category": "Hindi and English transliteration",
         "label": "same",
-        "outcome": "not linked",
-        "why": "no company with a similar name in the CIN universe we hold",
+        "outcome": "review",
+        "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
         "name_agreement": "different"
        },
        {
@@ -2703,23 +2699,23 @@
       "category": "spelling slip",
       "label": "same",
       "outcome": "review",
-      "why": "probability below the automatic threshold",
+      "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
       "name_agreement": "typo"
      },
      {
       "id": "translit.shri_shree",
       "category": "Hindi and English transliteration",
       "label": "same",
-      "outcome": "not linked",
-      "why": "best candidate too weak or contradicted",
+      "outcome": "review",
+      "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
       "name_agreement": "different"
      },
      {
       "id": "translit.laxmi_lakshmi",
       "category": "Hindi and English transliteration",
       "label": "same",
-      "outcome": "not linked",
-      "why": "no company with a similar name in the CIN universe we hold",
+      "outcome": "review",
+      "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
       "name_agreement": "different"
      },
      {
@@ -2742,16 +2738,16 @@
       "id": "translit.compound_word",
       "category": "Hindi and English transliteration",
       "label": "same",
-      "outcome": "not linked",
-      "why": "no company with a similar name in the CIN universe we hold",
+      "outcome": "review",
+      "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
       "name_agreement": "different"
      },
      {
       "id": "translit.two_vowels",
       "category": "Hindi and English transliteration",
       "label": "same",
-      "outcome": "not linked",
-      "why": "no company with a similar name in the CIN universe we hold",
+      "outcome": "review",
+      "why": "the same name in another spelling (Shri and Shree, Lakshmi and Laxmi); confirm it is the same business",
       "name_agreement": "different"
      },
      {
@@ -3224,7 +3220,7 @@
     ],
     "leaked": []
    },
-   "seconds": 2.3,
+   "seconds": 3,
    "network_blocked": []
   }
  }
