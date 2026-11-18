@@ -1,0 +1,24 @@
+{
+  "_comment": "Canary personal data for the privacy egress eval (evals/lib/privacy.mjs and evals/ingest_matching.py). All invented. The canaries are planted where a real company's personal data would sit: the registered email is a person's own (as it often is for a new company), the vendor profile carries a director's name and a mobile, the portal profile lists the founder in its team, and the founder's reply ends with a signature. If any canary appears in a request to an outside service, it left the engine.",
+  "director_name": "Kavyanshi Trivedolu",
+  "personal_email": "kavyanshi.trivedolu@vezrasmail.example",
+  "phone": "98765 43210",
+  "phone_probes": [
+    {"id": "plus91_grouped_4_3_3", "text": "+91 9876 543 210", "digits": "9876543210"},
+    {"id": "landline_lucknow", "text": "0522 4012345", "digits": "05224012345"}
+  ],
+  "company": {
+    "cin": "U21002UP2026PTC300201",
+    "name": "ZEPHYRA HERBALS PRIVATE LIMITED",
+    "district": "Lucknow",
+    "incorporated": "2026-10-14",
+    "uplc": "UPLC_20260001"
+  },
+  "role_company": {
+    "cin": "U21002UP2026PTC300202",
+    "name": "QUILLORA WELLNESS PRIVATE LIMITED",
+    "registered_email": "info@quillora.example"
+  },
+  "claimant": {"name": "Rohan Tejpalsingh", "email": "rohan.tejpal@zephyraherbals.example", "whatsapp": "98765 43299"},
+  "campaign": {"code": "eval-campus", "name": "Eval campus fair", "channel": "campus", "active": true, "from": "2026-11-01", "to": "2027-03-31"}
+}

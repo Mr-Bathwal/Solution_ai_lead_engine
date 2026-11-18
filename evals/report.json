@@ -1,0 +1,4146 @@
+{
+ "meta": {
+  "at": "2026-11-18T19:36:38.412Z",
+  "ist": "2026-11-19 01:06",
+  "seconds": 13.9,
+  "harnessErrors": [],
+  "blocked": []
+ },
+ "scorecard": [
+  [
+   "1. Draft factuality and lawfulness",
+   "71 drafts from 37 companies: facts 100% from the pack; every check passed by 0/71 (46/71 if the signature's website link is allowed)"
+  ],
+  [
+   "2. QC sensitivity",
+   "eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 833/1397 (59.6%); 10 of 24 mutation types never caught"
+  ],
+  [
+   "3. Compliance gate",
+   "36/39 cases agree (92.3%); 3 disagreement(s), 0 harness error(s)"
+  ],
+  [
+   "4. Privacy egress",
+   "13 outside calls over 6 services; LEAKS on 2 path(s): llm:reply_classify (director name); llm:reply_classify (mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\")"
+  ],
+  [
+   "5. Matching and websites",
+   "48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 29/34); websites 27/30, directories and social networks rejected 22/23; web search egress clean"
+  ],
+  [
+   "6. Docs agree with the code",
+   "234 items checked; 4 mismatch(es)"
+  ]
+ ],
+ "findings": [
+  {
+   "severity": 1,
+   "title": "Reply classification sends a founder's name and phone numbers to the LLM gateway",
+   "where": [
+    "services/src/inbound/parse.js:284",
+    "services/src/inbound/classify.js:86"
+   ],
+   "failing": [
+    "reply_classify: a signature without a \"-- \" line: director name",
+    "reply_classify: numbers written other ways: mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\""
+   ],
+   "why": "When the rules are unsure, the reply's new text goes to the gateway's small model (an outside service, possibly outside India, per the legal pack's processor question). newText() drops the signature only after a \"-- \" line, which most people never type, so \"Regards, <name>, Director\" goes out; scrub() removes emails and mobiles written 98765 43210, but not a mobile grouped +91 9876 543 210 nor a landline such as 0522 4012345. Leaked here: director name, mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\". The design's rule is never a person's data to an outside service, and classify.js says the model sees the reply \"with every address and number taken out\"."
+  },
+  {
+   "severity": 2,
+   "title": "The gate does not re-check recipient.use_website_email: a website address drafted while the switch was on is still sent after it is turned off",
+   "where": [
+    "services/src/outreach/gate.js:99",
+    "config/outreach.json:40"
+   ],
+   "failing": [
+    "stop.website_address_switch_turned_off: send (gate: ok)"
+   ],
+   "why": "The switch exists because the lawyer has not yet approved writing to website addresses (legal pack, question 2). If the answer is no and the switch goes off, every approved draft to a website address still in the queue is sent anyway, because the gate accepts the basis published_by_company whatever the switch says. A one-line check at the gate closes it."
+  },
+  {
+   "severity": 2,
+   "title": "The quality check misses wrong facts whose digits appear elsewhere in the evidence pack",
+   "where": [
+    "services/src/outreach/qc.js:77",
+    "services/src/outreach/qc.js:72",
+    "config/outreach.json:10"
+   ],
+   "failing": [
+    "date.us_format_wrong (a wrong date written \"Month D, YYYY\"): caught 20/34",
+    "date.swapped (two deadlines' dates swapped): caught 0/20",
+    "section.near_miss (a section one letter off (s.10A as s.10B)): caught 0/22",
+    "form.truncated (a form code cut short (INC-20A as INC-20)): caught 0/35",
+    "amount.figure_from_a_date (an invented amount whose figure appears in a date of the pack): caught 0/64",
+    "amount.misattributed (a scheme amount from the pack given to the wrong scheme): caught 1/2"
+   ],
+   "why": "facts.numbers checks each number in a draft against the set of every digit string in the pack, without context, and facts.forms accepts any form that is a substring of the pack's text. So \"₹13 lakh\" passes when a date in the pack is the 13th, two deadlines' dates can be swapped, \"INC-20A\" can become \"INC-20\" and \"s.10A\" \"s.10B\". The templates make none of these mistakes (Eval 1: no factual error in any draft), but the AI drafter could, and once approval.mode becomes \"sample\" (HANDOVER, design 7.5) 80% of drafts that pass this check are sent without a person reading them."
+  },
+  {
+   "severity": 3,
+   "title": "The gate accepts a recipient labelled \"consent\" without looking in the consent ledger",
+   "where": [
+    "services/src/outreach/gate.js:99"
+   ],
+   "failing": [
+    "stop.consent_label_without_consent: send"
+   ],
+   "why": "config/outreach.json lists consent as a legal basis for email, and the gate checks only the label on the message. No drafting path creates such a recipient today (recipientFor gives only published_under_law or published_by_company), so this is defence in depth: the day a consented address is used for email, the gate should confirm the consent is in the ledger and not withdrawn, as the WhatsApp and call paths already do."
+  },
+  {
+   "severity": 3,
+   "title": "A company whose CIN was issued outside UP is emailed if its record says state UP",
+   "where": [
+    "services/src/outreach/gate.js:80",
+    "schema/collections.json:14"
+   ],
+   "failing": [
+    "stop.cin_says_not_up (CIN U62099DL2026PTC300102): send"
+   ],
+   "why": "\"UP only\" is enforced by the database on the state field alone. The CIN carries the state of registration (characters 7-8); a record mislabelled upstream is contacted. A cheap cross-check in the validator or the gate would hold the promise even when an ingest step is wrong."
+  },
+  {
+   "severity": 3,
+   "title": "The quality check misses an extra link written as a bare domain, a director named, another company's name in the greeting, a penalty threat in other words, urgency in other words, a claim that a filing was not made, in other words",
+   "where": [
+    "services/src/outreach/qc.js:40",
+    "services/src/outreach/qc.js:35",
+    "config/outreach.json:52"
+   ],
+   "failing": [
+    "link.extra_bare_domain (an extra link written as a bare domain): caught 0/68",
+    "person.director_named (a director named): caught 0/68",
+    "company.other_in_greeting (another company's name in the greeting): caught 0/68",
+    "tone.penalty_paraphrase (a penalty threat in other words): caught 0/68",
+    "tone.urgency_paraphrase (urgency in other words): caught 0/68",
+    "tone.missed_paraphrase (a claim that a filing was not made, in other words): caught 0/68"
+   ],
+   "why": "The tone rules are fixed phrase lists, so \"Please file on time to avoid penalties\" or \"this filing was not made on time\" pass; links are found only after http(s):// or www.; nothing checks names. A person reading every draft catches these, which is why they rank below the factual misses; under sample approval they would reach founders."
+  },
+  {
+   "severity": 4,
+   "title": "Long company names make the reviewed templates fail their own length limits",
+   "where": [
+    "services/src/outreach/templates.js:32",
+    "services/src/outreach/templates.js:63",
+    "config/outreach.json:48"
+   ],
+   "failing": [
+    "navyarth/first_touch/en: subject 94 characters (limit 90); body 253 words (limit 250)",
+    "navyarth/follow_up/en: subject 98 characters (limit 90)",
+    "omvara/follow_up/en: subject 94 characters (limit 90)"
+   ],
+   "why": "The first subject is \"<name>: your next filing dates\" and a follow-up adds \"Re: \", so a name over 66 characters (62 for a follow-up) breaks the 90-character limit, and a long name repeated in a full pack pushes the body past 250 words. Such a draft is stored as qc_failed: a person must shorten it by hand before it can be approved, every time, and under sample approval it never goes by the engine's route. MCA allows names this long; the templates could shorten the subject instead (for example without \"Private Limited\")."
+  },
+  {
+   "severity": 4,
+   "title": "Every template email carries a third link (the sender's website in the signature)",
+   "where": [
+    "services/src/outreach/templates.js:27",
+    "services/src/outreach/draft.js:34"
+   ],
+   "failing": [
+    "71/71 drafts: other links: https://solutionai.in"
+   ],
+   "why": "templates.js promises \"one link to the company's page and one to unsubscribe\", and the AI prompt says the page link is \"the only link\", yet the signature it must copy word for word holds https://solutionai.in. qc.js deliberately allows it. Harmless in itself, but the promise, the prompt and the code disagree; decide which is meant."
+  },
+  {
+   "severity": 4,
+   "title": "follow_up emails do not say why the founder is getting them",
+   "where": [
+    "services/src/outreach/templates.js:73"
+   ],
+   "failing": [
+    "24 drafts: aarvik/follow_up/en, bhuvira/follow_up/hi, chandral/follow_up/hi, dhanvio/follow_up/en, ekansh/follow_up/hi, falgun/follow_up/en, garvisha/follow_up/en, hemkosh/follow_up/hi and 16 more"
+   ],
+   "why": "First and new-need emails end with where the address came from (the MCA register or the company's own website); follow-ups end with the unsubscribe link only. A founder who sees only the follow-up (the first went to spam) is never told the source, which matters most for a website address, the basis the lawyer has not yet approved."
+  },
+  {
+   "severity": 4,
+   "title": "Transliteration variants of the same name are not even put in front of a reviewer",
+   "where": [
+    "ingest/src/leadengine/names.py:53",
+    "ingest/src/leadengine/kb/match.py:361"
+   ],
+   "failing": [
+    "translit.shri_shree: not linked (best candidate too weak or contradicted)",
+    "translit.laxmi_lakshmi: not linked (no company with a similar name in the CIN universe we hold)",
+    "translit.devanagari: not linked (no company with a similar name in the CIN universe we hold)",
+    "translit.compound_word: not linked (no company with a similar name in the CIN universe we hold)",
+    "translit.two_vowels: not linked (no company with a similar name in the CIN universe we hold)"
+   ],
+   "why": "Laxmi/Lakshmi, Shri/Shree, a name typed in Devanagari: the founder's company is in the universe but no candidate reaches the review queue, so the startup stays unlinked and its facts never join the company record. Precision is unharmed; recall on Hindi-belt names is."
+  },
+  {
+   "severity": 4,
+   "title": "Name normalisation calls two different one-letter-apart names \"the same but for a slip\"",
+   "where": [
+    "ingest/src/leadengine/names.py:53"
+   ],
+   "failing": [
+    "near.one_letter_names"
+   ],
+   "why": "typo_of treats Hiranyo and Hiranya as one name misspelt. In this run the matcher still did not link them automatically (the probability stayed under the threshold), but the name rule alone offers no protection; it relies on the other conditions."
+  },
+  {
+   "severity": 4,
+   "title": "Website confirmation takes a free site-builder subdomain for the company's own site",
+   "where": [
+    "ingest/src/leadengine/web.py:7"
+   ],
+   "failing": [
+    "builder.weebly: https://tarovikagrofoods.weebly.com/"
+   ],
+   "why": "wixsite.com, blogspot.com and godaddysites.com are refused as shared hosts, but other builders (weebly.com here; similarly jimdo, webnode, myshopify) are not. The contact step then looks for role addresses on that subdomain, so the practical harm is small, but the rule should be a list of kinds, not a handful of names."
+  },
+  {
+   "severity": 4,
+   "title": "Website confirmation rejects real company sites whose names are initials or whose domains drop \"Shri\"",
+   "where": [
+    "ingest/src/leadengine/enrich/websites.py:94",
+    "ingest/src/leadengine/enrich/websites.py:100"
+   ],
+   "failing": [
+    "own.two_letter_initials: https://vnagro.example/",
+    "own.honorific_dropped: https://ganeshagro.example/"
+   ],
+   "why": "distinctive() drops words under three letters and domain_fits() requires the first distinctive word in the domain, so \"VN Agro\" has no distinctive word at all and \"Shri Ganesh Agro\" at ganeshagro.* fails. Safe (nothing wrong is accepted) but those companies never get a website address."
+  },
+  {
+   "severity": 4,
+   "title": "Docs and code disagree",
+   "where": [
+    ".env.example",
+    "docs/HANDOVER.md",
+    "docs/platform-openapi.yaml"
+   ],
+   "failing": [
+    "CAPS_FILE is read (services/src/config.js:32) but not in .env.example",
+    "DKIM_SELECTOR is read (services/src/ops/preflight.js:172) but not in .env.example",
+    "SARVAM_API_BASE is read (services/src/voice/sarvam.js:90) but not in .env.example",
+    "<MAILBOX_n>_SMTP_USER is read (services/src/outreach/transport.js:30) but not in .env.example"
+   ],
+   "why": "The handover is what the team runs the engine from after 25 November; a variable missing from .env.example is a setting nobody will know to set (DKIM_SELECTOR changes what preflight checks)."
+  }
+ ],
+ "results": {
+  "drafts": {
+   "summary": {
+    "drafts": 71,
+    "all_checks_passed": 0,
+    "by_check": {
+     "facts.dates_in_pack": {
+      "passed": 71,
+      "total": 71
+     },
+     "facts.dates_attributed": {
+      "passed": 71,
+      "total": 71
+     },
+     "facts.forms_in_pack": {
+      "passed": 71,
+      "total": 71
+     },
+     "facts.sections_in_pack": {
+      "passed": 71,
+      "total": 71
+     },
+     "facts.rupees_in_pack": {
+      "passed": 71,
+      "total": 71
+     },
+     "company.name_right": {
+      "passed": 71,
+      "total": 71
+     },
+     "company.no_other_company": {
+      "passed": 71,
+      "total": 71
+     },
+     "links.one_page_link": {
+      "passed": 71,
+      "total": 71
+     },
+     "links.one_unsubscribe_link": {
+      "passed": 71,
+      "total": 71
+     },
+     "links.no_other_links": {
+      "passed": 0,
+      "total": 71
+     },
+     "links.no_unknown_placeholders": {
+      "passed": 71,
+      "total": 71
+     },
+     "why.matches_basis": {
+      "passed": 47,
+      "total": 71
+     },
+     "opt_out.words": {
+      "passed": 71,
+      "total": 71
+     },
+     "privacy.no_person": {
+      "passed": 71,
+      "total": 71
+     },
+     "lawful.no_conditional_obligation": {
+      "passed": 71,
+      "total": 71
+     },
+     "lawful.no_threat_or_urgency": {
+      "passed": 71,
+      "total": 71
+     },
+     "length.subject": {
+      "passed": 68,
+      "total": 71
+     },
+     "length.body": {
+      "passed": 70,
+      "total": 71
+     }
+    },
+    "coverage": {
+     "companies": 37,
+     "drafts": 71,
+     "by_kind": {
+      "first_touch": 37,
+      "follow_up": 24,
+      "new_need (deadline)": 6,
+      "new_need (scheme)": 4
+     },
+     "by_language": {
+      "en": 39,
+      "hi": 32
+     },
+     "by_basis": {
+      "published_under_law": 60,
+      "published_by_company": 11
+     },
+     "with_schemes": 57,
+     "llp": 7,
+     "was_due_lines": 36
+    },
+    "skipped": [],
+    "engine_qc_failed": [
+     {
+      "id": "navyarth/first_touch/en",
+      "failed": [
+       "length.subject: the subject must be 1 to 90 characters",
+       "length.body: the body has 253 words; at most 250"
+      ]
+     },
+     {
+      "id": "navyarth/follow_up/en",
+      "failed": [
+       "length.subject: the subject must be 1 to 90 characters"
+      ]
+     },
+     {
+      "id": "omvara/follow_up/en",
+      "failed": [
+       "length.subject: the subject must be 1 to 90 characters"
+      ]
+     }
+    ]
+   },
+   "failing": [
+    {
+     "id": "aarvik/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "aarvik/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "aarvik/new_need/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "bhuvira/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "bhuvira/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "chandral/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "chandral/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "dhanvio/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "dhanvio/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "ekansh/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "ekansh/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "falgun/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "falgun/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "falgun/new_need/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "garvisha/first_touch/en",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "garvisha/follow_up/en",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "garvisha/new_need/en",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "hemkosh/first_touch/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "hemkosh/follow_up/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "ilavya/first_touch/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "ilavya/new_need/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "jivantra/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "jivantra/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "kaushvi/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "lavanyo/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "lavanyo/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "madhurak/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "navyarth/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "length.subject",
+      "length.body"
+     ],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "length.subject",
+       "detail": "subject 94 characters (limit 90)"
+      },
+      {
+       "id": "length.body",
+       "detail": "body 253 words (limit 250)"
+      }
+     ]
+    },
+    {
+     "id": "navyarth/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "length.subject"
+     ],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      },
+      {
+       "id": "length.subject",
+       "detail": "subject 98 characters (limit 90)"
+      }
+     ]
+    },
+    {
+     "id": "ojasvik/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "ojasvik/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "ojasvik/new_need/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "prakriva/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "prakriva/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "quarvi/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "rudhvik/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "rudhvik/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "saanvra/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "saanvra/new_need/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "tanmayo/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "udbhav/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "udbhav/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "vaidhra/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "yashvik/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "yashvik/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "yashvik/new_need/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "zorvana/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "amritsa/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "amritsa/new_need/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "barkhaya/first_touch/en",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "barkhaya/follow_up/en",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "chitrakh/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "devansha/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "devansha/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "eshvika/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "eshvika/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "gaurangi/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "hiranyo/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "hiranyo/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "indravi/first_touch/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "indravi/follow_up/hi",
+     "basis": "published_by_company",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "jagrit/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "jagrit/new_need/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "kalindo/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "lokvesh/first_touch/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "lokvesh/follow_up/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "lokvesh/new_need/hi",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "mrinavi/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "mrinavi/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      }
+     ]
+    },
+    {
+     "id": "omvara/first_touch/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      }
+     ]
+    },
+    {
+     "id": "omvara/follow_up/en",
+     "basis": "published_under_law",
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "length.subject"
+     ],
+     "failed": [
+      {
+       "id": "links.no_other_links",
+       "detail": "other links: https://solutionai.in"
+      },
+      {
+       "id": "why.matches_basis",
+       "detail": "no \"why you are getting this\" line (follow_up)"
+      },
+      {
+       "id": "length.subject",
+       "detail": "subject 94 characters (limit 90)"
+      }
+     ]
+    }
+   ],
+   "seconds": 0.1
+  },
+  "qc": {
+   "builtIn": {
+    "clean_drafts": 360,
+    "false_positives": 0,
+    "false_positive_checks": {},
+    "fault_types": 20,
+    "broken_drafts": 7080,
+    "caught": 7080,
+    "missed": 0,
+    "by_fault": {
+     "facts.dates: an invented date": {
+      "cases": 360,
+      "caught": 360
+     },
+     "facts.dates: a date in figures": {
+      "cases": 360,
+      "caught": 360
+     },
+     "facts.forms: a form not in the pack": {
+      "cases": 360,
+      "caught": 360
+     },
+     "facts.numbers: an invented amount": {
+      "cases": 360,
+      "caught": 360
+     },
+     "facts.identifiers: another company's CIN": {
+      "cases": 360,
+      "caught": 360
+     },
+     "facts.company_named: the company not named": {
+      "cases": 360,
+      "caught": 360
+     },
+     "links.page_once: no page link": {
+      "cases": 360,
+      "caught": 360
+     },
+     "links.page_once: the page link twice": {
+      "cases": 360,
+      "caught": 360
+     },
+     "links.unsubscribe_once: no unsubscribe link": {
+      "cases": 360,
+      "caught": 360
+     },
+     "links.no_others: another link": {
+      "cases": 360,
+      "caught": 360
+     },
+     "opt_out.words: no opt-out sentence": {
+      "cases": 360,
+      "caught": 360
+     },
+     "language: the wrong language": {
+      "cases": 360,
+      "caught": 360
+     },
+     "tone.banned_phrases: urgency": {
+      "cases": 360,
+      "caught": 360
+     },
+     "tone.no_missed_claim: a claim that a filing was missed": {
+      "cases": 360,
+      "caught": 360
+     },
+     "tone.exclamations: exclamation marks": {
+      "cases": 360,
+      "caught": 360
+     },
+     "subject.not_shouted: a subject in capitals": {
+      "cases": 360,
+      "caught": 360
+     },
+     "subject.honest: a fake \"Re:\"": {
+      "cases": 240,
+      "caught": 240
+     },
+     "privacy.no_contacts: a phone number": {
+      "cases": 360,
+      "caught": 360
+     },
+     "privacy.no_contacts: an email address": {
+      "cases": 360,
+      "caught": 360
+     },
+     "length.body: too long": {
+      "cases": 360,
+      "caught": 360
+     }
+    }
+   },
+   "builtInMisses": [],
+   "mutations": {
+    "applied": 1397,
+    "caught": 833,
+    "grader_caught": 1260,
+    "by_mutation": {
+     "date.shifted": {
+      "name": "a deadline one day off",
+      "applied": 64,
+      "caught": 64,
+      "fired": {
+       "facts.dates": 64
+      },
+      "grader_caught": 64
+     },
+     "date.us_format_wrong": {
+      "name": "a wrong date written \"Month D, YYYY\"",
+      "applied": 34,
+      "caught": 20,
+      "fired": {
+       "facts.numbers": 20
+      },
+      "grader_caught": 34
+     },
+     "date.swapped": {
+      "name": "two deadlines' dates swapped",
+      "applied": 20,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 20
+     },
+     "section.invented": {
+      "name": "an invented section number",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68
+      },
+      "grader_caught": 68
+     },
+     "section.near_miss": {
+      "name": "a section one letter off (s.10A as s.10B)",
+      "applied": 22,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 22
+     },
+     "form.truncated": {
+      "name": "a form code cut short (INC-20A as INC-20)",
+      "applied": 35,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 35
+     },
+     "link.extra_https": {
+      "name": "an extra https link",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "links.no_others": 68
+      },
+      "grader_caught": 68
+     },
+     "link.extra_bare_domain": {
+      "name": "an extra link written as a bare domain",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 68
+     },
+     "link.no_unsubscribe": {
+      "name": "the unsubscribe link removed",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "links.unsubscribe_once": 68
+      },
+      "grader_caught": 68
+     },
+     "subject.shouted": {
+      "name": "the subject in capitals",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "subject.not_shouted": 68
+      },
+      "grader_caught": 68
+     },
+     "amount.invented": {
+      "name": "an invented scheme amount",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68
+      },
+      "grader_caught": 68
+     },
+     "amount.figure_from_a_date": {
+      "name": "an invented amount whose figure appears in a date of the pack",
+      "applied": 64,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 64
+     },
+     "amount.misattributed": {
+      "name": "a scheme amount from the pack given to the wrong scheme",
+      "applied": 2,
+      "caught": 1,
+      "fired": {
+       "length.body": 1
+      },
+      "grader_caught": 1
+     },
+     "phone.standard": {
+      "name": "a personal mobile, 98765 43210",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68,
+       "privacy.no_contacts": 68
+      },
+      "grader_caught": 68
+     },
+     "phone.plus91_dashes": {
+      "name": "a personal mobile, +91-98765-43210",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68,
+       "privacy.no_contacts": 68
+      },
+      "grader_caught": 68
+     },
+     "phone.grouped_4_3_3": {
+      "name": "a personal mobile, +91 9876 543 210",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68
+      },
+      "grader_caught": 68
+     },
+     "phone.landline": {
+      "name": "a landline, 0522 4012345",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "facts.numbers": 68
+      },
+      "grader_caught": 68
+     },
+     "email.personal": {
+      "name": "a personal email address",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "privacy.no_contacts": 68
+      },
+      "grader_caught": 68
+     },
+     "person.director_named": {
+      "name": "a director named",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 68
+     },
+     "company.other_in_greeting": {
+      "name": "another company's name in the greeting",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 68
+     },
+     "opt_out.words_removed": {
+      "name": "the opt-out sentence removed, the link kept",
+      "applied": 68,
+      "caught": 68,
+      "fired": {
+       "opt_out.words": 68
+      },
+      "grader_caught": 68
+     },
+     "tone.penalty_paraphrase": {
+      "name": "a penalty threat in other words",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 68
+     },
+     "tone.urgency_paraphrase": {
+      "name": "urgency in other words",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 0
+     },
+     "tone.missed_paraphrase": {
+      "name": "a claim that a filing was not made, in other words",
+      "applied": 68,
+      "caught": 0,
+      "fired": {},
+      "grader_caught": 0
+     }
+    },
+    "missed": {
+     "date.us_format_wrong": [
+      "aarvik/first_touch/en",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "saanvra/first_touch/en",
+      "udbhav/follow_up/en",
+      "zorvana/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "hiranyo/first_touch/en",
+      "kalindo/first_touch/en"
+     ],
+     "date.swapped": [
+      "aarvik/first_touch/en",
+      "bhuvira/first_touch/hi",
+      "chandral/first_touch/hi",
+      "garvisha/first_touch/en",
+      "hemkosh/first_touch/hi",
+      "ilavya/first_touch/hi",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "madhurak/first_touch/en",
+      "saanvra/first_touch/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "yashvik/first_touch/hi",
+      "zorvana/first_touch/en",
+      "devansha/first_touch/en",
+      "eshvika/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "indravi/first_touch/hi",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi"
+     ],
+     "section.near_miss": [
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "dhanvio/first_touch/en",
+      "ekansh/first_touch/hi",
+      "garvisha/new_need/en",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "saanvra/new_need/en",
+      "vaidhra/first_touch/en",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "barkhaya/first_touch/en",
+      "chitrakh/first_touch/en",
+      "gaurangi/first_touch/hi",
+      "indravi/first_touch/hi",
+      "jagrit/first_touch/en",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "omvara/first_touch/en"
+     ],
+     "form.truncated": [
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/new_need/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "link.extra_bare_domain": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "amount.figure_from_a_date": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "amount.misattributed": [
+      "vaidhra/first_touch/en"
+     ],
+     "person.director_named": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "company.other_in_greeting": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "tone.penalty_paraphrase": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "tone.urgency_paraphrase": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ],
+     "tone.missed_paraphrase": [
+      "aarvik/first_touch/en",
+      "aarvik/follow_up/en",
+      "aarvik/new_need/en",
+      "bhuvira/first_touch/hi",
+      "bhuvira/follow_up/hi",
+      "chandral/first_touch/hi",
+      "chandral/follow_up/hi",
+      "dhanvio/first_touch/en",
+      "dhanvio/follow_up/en",
+      "ekansh/first_touch/hi",
+      "ekansh/follow_up/hi",
+      "falgun/first_touch/en",
+      "falgun/follow_up/en",
+      "falgun/new_need/en",
+      "garvisha/first_touch/en",
+      "garvisha/follow_up/en",
+      "garvisha/new_need/en",
+      "hemkosh/first_touch/hi",
+      "hemkosh/follow_up/hi",
+      "ilavya/first_touch/hi",
+      "ilavya/new_need/hi",
+      "jivantra/first_touch/en",
+      "jivantra/follow_up/en",
+      "kaushvi/first_touch/hi",
+      "lavanyo/first_touch/en",
+      "lavanyo/follow_up/en",
+      "madhurak/first_touch/en",
+      "ojasvik/first_touch/hi",
+      "ojasvik/follow_up/hi",
+      "ojasvik/new_need/hi",
+      "prakriva/first_touch/hi",
+      "prakriva/follow_up/hi",
+      "quarvi/first_touch/en",
+      "rudhvik/first_touch/hi",
+      "rudhvik/follow_up/hi",
+      "saanvra/first_touch/en",
+      "saanvra/new_need/en",
+      "tanmayo/first_touch/hi",
+      "udbhav/first_touch/en",
+      "udbhav/follow_up/en",
+      "vaidhra/first_touch/en",
+      "yashvik/first_touch/hi",
+      "yashvik/follow_up/hi",
+      "yashvik/new_need/hi",
+      "zorvana/first_touch/en",
+      "amritsa/first_touch/hi",
+      "amritsa/new_need/hi",
+      "barkhaya/first_touch/en",
+      "barkhaya/follow_up/en",
+      "chitrakh/first_touch/en",
+      "devansha/first_touch/en",
+      "devansha/follow_up/en",
+      "eshvika/first_touch/hi",
+      "eshvika/follow_up/hi",
+      "gaurangi/first_touch/hi",
+      "hiranyo/first_touch/en",
+      "hiranyo/follow_up/en",
+      "indravi/first_touch/hi",
+      "indravi/follow_up/hi",
+      "jagrit/first_touch/en",
+      "jagrit/new_need/en",
+      "kalindo/first_touch/en",
+      "lokvesh/first_touch/hi",
+      "lokvesh/follow_up/hi",
+      "lokvesh/new_need/hi",
+      "mrinavi/first_touch/en",
+      "mrinavi/follow_up/en",
+      "omvara/first_touch/en"
+     ]
+    }
+   },
+   "seconds": 1.3
+  },
+  "database": {
+   "ok": true,
+   "seconds": 2.8
+  },
+  "gate": {
+   "cases": 39,
+   "agree": 36,
+   "errors": 0,
+   "results": [
+    {
+     "id": "allow.baseline",
+     "why": "a role address published under law, Friday 11:30 IST, warm-up over, rules confirmed",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "allow.monday_window_opens",
+     "why": "drafted on Friday, sent the moment the window opens on Monday (10:00 IST)",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "allow.personal_registered_email",
+     "why": "the registered email is a person's own; the engine relies on DPDP s.3(c)(ii)(B) for addresses published under law (legal pack, question 1)",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "allow.personal_address_never_to_verifier",
+     "why": "with a verification service configured, a person's address gets only the free checks and is still used",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "allow.website_address_switch_on",
+     "why": "no registered email, a role address on the company's own website, recipient.use_website_email on",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_by_company",
+     "agree": true
+    },
+    {
+     "id": "allow.implicit_mx",
+     "why": "the domain has no MX record but has an address record: mail goes there (RFC 5321 s.5.1)",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "allow.registered_dead_gives_way_to_website",
+     "why": "the registered domain receives no mail, so the next plan writes to the role address on the company's website (switch on)",
+     "expect": [
+      "send"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: skipped (address no-mx (deadregistered.example receives no mail): not used); plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_by_company",
+     "agree": true
+    },
+    {
+     "id": "stop.suppressed_address",
+     "why": "the address is on the suppression list",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "suppressed",
+      "reason": "the address is on the suppression list (unsubscribe)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.suppressed_domain",
+     "why": "the company's whole domain is on the suppression list",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "suppressed",
+      "reason": "the address is on the suppression list (unsubscribe)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.opted_out",
+     "why": "the founder opted out (an 'unsubscribed' activity)",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "opted_out",
+      "reason": "the founder opted out or complained"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.complained",
+     "why": "the founder complained",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "opted_out",
+      "reason": "the founder opted out or complained"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.replied",
+     "why": "the founder replied: a person takes over",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "replied",
+      "reason": "the founder replied: a person takes over"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.claimed_after_approval",
+     "why": "the founder claimed the page after the draft was approved",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "claimed",
+      "reason": "the founder claimed the company page: only what they agreed to from now on"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.hard_bounced_before",
+     "why": "an earlier email to this company hard-bounced",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "bounced",
+      "reason": "an email to this company hard-bounced: find a working address first"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.holdout",
+     "why": "a holdout company is never contacted",
+     "expect": [
+      "no_message",
+      "stop"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: nothing",
+     "agree": true
+    },
+    {
+     "id": "stop.holdout_after_approval",
+     "why": "the lead is a holdout by the time of sending (gate as backstop)",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "holdout",
+      "reason": "holdout: this company is never contacted"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.ineligible",
+     "why": "the need engine marked the company ineligible",
+     "expect": [
+      "no_message",
+      "stop"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: nothing",
+     "agree": true
+    },
+    {
+     "id": "stop.non_up_company",
+     "why": "a company registered outside Uttar Pradesh (state DL): the database must refuse it",
+     "expect": [
+      "no_message"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "the database refused the company (schema validation); plan: shortlisted 1, no_address 1",
+     "agree": true
+    },
+    {
+     "id": "stop.cin_says_not_up",
+     "why": "the record says state UP but its CIN was issued in Delhi (DL): a data error upstream",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": false
+    },
+    {
+     "id": "stop.already_contacted",
+     "why": "a first email already went to this company (recorded in activities, e.g. from an earlier campaign)",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "already_sent",
+      "reason": "the first email has already been sent"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.published_by_person",
+     "why": "the recipient is a person's own published address (not company-level)",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "no_legal_basis",
+      "reason": "the address's legal basis (published_by_person) does not allow this message"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_by_person",
+     "agree": true
+    },
+    {
+     "id": "stop.consent_label_without_consent",
+     "why": "the recipient is labelled 'consent' but the consent ledger has nothing for it",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "consent",
+     "agree": false
+    },
+    {
+     "id": "stop.website_address_switch_off",
+     "why": "only a website address is known and recipient.use_website_email is off",
+     "expect": [
+      "no_message"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: shortlisted 1, no_address 1",
+     "agree": true
+    },
+    {
+     "id": "stop.website_address_switch_turned_off",
+     "why": "drafted while the switch was on; the switch is turned off (the lawyer said no) before it is sent",
+     "expect": [
+      "stop",
+      "wait"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_by_company",
+     "agree": false
+    },
+    {
+     "id": "stop.disposable_domain",
+     "why": "a throwaway-mail domain",
+     "expect": [
+      "no_message"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: skipped (address disposable (a throwaway-mail domain): not used)",
+     "agree": true
+    },
+    {
+     "id": "stop.no_mx",
+     "why": "the domain receives no mail (no MX, no address record)",
+     "expect": [
+      "no_message"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: skipped (address no-mx (nomail.example receives no mail): not used)",
+     "agree": true
+    },
+    {
+     "id": "stop.accept_all_first_wave",
+     "why": "an accept-all domain is held out of the first wave",
+     "expect": [
+      "no_message"
+     ],
+     "outcome": "no_message",
+     "gate": null,
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: deferred (address accept-all (zerobounce): held back from the first wave, tried again in 14 days)",
+     "agree": true
+    },
+    {
+     "id": "stop.text_changed_after_approval",
+     "why": "the body was changed after the person approved it",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "approval_stale",
+      "reason": "the text changed after it was approved"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.expired",
+     "why": "approved but not sent for 17 days: its facts may be stale",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "expired",
+      "reason": "the message is too old to send; its facts may have changed"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "stop.stale_fact",
+     "why": "a deadline the email calls upcoming has passed by the time of sending",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "stop",
+     "gate": {
+      "decision": "stop",
+      "code": "stale_facts",
+      "reason": "it calls Appoint the first statutory auditor upcoming, but the date has passed"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.rules_unconfirmed",
+     "why": "the CA has not confirmed the rules",
+     "expect": [
+      "wait",
+      "stop",
+      "no_message"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "rules_unconfirmed",
+      "reason": "the deadline and scheme rules are not yet confirmed by a CA"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.rules_withdrawn_after_approval",
+     "why": "the CA's confirmation was withdrawn after approval",
+     "expect": [
+      "wait",
+      "stop"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "rules_unconfirmed",
+      "reason": "the deadline and scheme rules are not yet confirmed by a CA"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.saturday",
+     "why": "Saturday is not a sending day",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "window",
+      "reason": "Sat is not a sending day"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.before_window",
+     "why": "09:59 IST, one minute before the window",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "window",
+      "reason": "outside the send window (10:00 to 17:30 IST)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.window_closed",
+     "why": "17:30 IST, the window has just closed",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "window",
+      "reason": "outside the send window (10:00 to 17:30 IST)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.friday_night_utc_is_saturday_ist",
+     "why": "Friday 19:00 UTC is Saturday 00:30 IST",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "window",
+      "reason": "Sat is not a sending day"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.daily_cap_reached",
+     "why": "both mailboxes have sent today's 25",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "daily_cap",
+      "reason": "mailbox-2 has sent its 25 emails for today"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.warmup",
+     "why": "day 14 of the 21-day warm-up",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "warmup",
+      "reason": "mailbox-2 is still warming up (day 14 of 21)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    },
+    {
+     "id": "wait.mailbox_paused_bounces",
+     "why": "3 hard bounces in 50 sends (6%) in the last 30 days",
+     "expect": [
+      "wait"
+     ],
+     "outcome": "wait",
+     "gate": {
+      "decision": "wait",
+      "code": "mailbox_paused",
+      "reason": "mailbox-2 is paused: 3 hard bounces in 30 days (6.0%, limit 2%)"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": true
+    }
+   ],
+   "disagreements": [
+    {
+     "id": "stop.cin_says_not_up",
+     "why": "the record says state UP but its CIN was issued in Delhi (DL): a data error upstream",
+     "expect": [
+      "stop",
+      "no_message"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_under_law",
+     "agree": false
+    },
+    {
+     "id": "stop.consent_label_without_consent",
+     "why": "the recipient is labelled 'consent' but the consent ledger has nothing for it",
+     "expect": [
+      "stop"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "consent",
+     "agree": false
+    },
+    {
+     "id": "stop.website_address_switch_turned_off",
+     "why": "drafted while the switch was on; the switch is turned off (the lawyer said no) before it is sent",
+     "expect": [
+      "stop",
+      "wait"
+     ],
+     "outcome": "send",
+     "gate": {
+      "decision": "send",
+      "code": "ok",
+      "reason": "first email"
+     },
+     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
+     "recipient_basis": "published_by_company",
+     "agree": false
+    }
+   ],
+   "seconds": 4
+  },
+  "privacy": {
+   "paths": [
+    {
+     "step": "draft: the AI drafter, its review and the address check",
+     "by_service": {
+      "llm:draft": {
+       "calls": 4,
+       "leaked": []
+      },
+      "llm:quality_check": {
+       "calls": 2,
+       "leaked": []
+      },
+      "email verification service": {
+       "calls": 1,
+       "leaked": []
+      }
+     }
+    },
+    {
+     "step": "match_check: the AI check on an unsure match",
+     "by_service": {
+      "llm:match_check": {
+       "calls": 1,
+       "leaked": []
+      }
+     }
+    },
+    {
+     "step": "reply_classify: a signature without a \"-- \" line",
+     "by_service": {
+      "llm:reply_classify": {
+       "calls": 1,
+       "leaked": [
+        "director name"
+       ]
+      }
+     }
+    },
+    {
+     "step": "reply_classify: a signature after a \"-- \" line",
+     "by_service": {
+      "llm:reply_classify": {
+       "calls": 1,
+       "leaked": []
+      }
+     }
+    },
+    {
+     "step": "reply_classify: numbers written other ways",
+     "by_service": {
+      "llm:reply_classify": {
+       "calls": 1,
+       "leaked": [
+        "mobile",
+        "number written \"+91 9876 543 210\"",
+        "number written \"0522 4012345\""
+       ]
+      }
+     }
+    },
+    {
+     "step": "platform onboarding: a direct claim",
+     "by_service": {
+      "platform /onboarding": {
+       "calls": 1,
+       "leaked": []
+      }
+     }
+    },
+    {
+     "step": "platform onboarding: a campaign claim, before and after its email confirmation",
+     "by_service": {
+      "platform /onboarding": {
+       "calls": 1,
+       "leaked": []
+      }
+     }
+    }
+   ],
+   "leaks": [
+    {
+     "step": "reply_classify: a signature without a \"-- \" line",
+     "service": "llm:reply_classify",
+     "leaked": [
+      "director name"
+     ]
+    },
+    {
+     "step": "reply_classify: numbers written other ways",
+     "service": "llm:reply_classify",
+     "leaked": [
+      "mobile",
+      "number written \"+91 9876 543 210\"",
+      "number written \"0522 4012345\""
+     ]
+    }
+   ],
+   "notes": {
+    "match_check": null,
+    "reply_classify": null
+   },
+   "verification": {
+    "calls": 1,
+    "addresses": [
+     "info@quillora.example"
+    ]
+   },
+   "claims": {
+    "direct": {
+     "status": 200,
+     "onboarding_calls": 1
+    },
+    "campaign": {
+     "waiting": {
+      "status": 200,
+      "outside_calls": 0,
+      "consents": 0,
+      "claimed": 0,
+      "confirmation_to": [
+       "rohan.tejpal@zephyraherbals.example"
+      ]
+     },
+     "confirmed": {
+      "status": 200,
+      "claimed": 1,
+      "onboarding_calls": 1
+     }
+    }
+   },
+   "claimant_sent_to_platform": [
+    {
+     "name": "Rohan Tejpalsingh",
+     "role": "Director",
+     "email": "rohan.tejpal@zephyraherbals.example",
+     "whatsapp": "+919876543299"
+    },
+    {
+     "name": "Rohan Tejpalsingh",
+     "role": "Director",
+     "email": "rohan.tejpal@zephyraherbals.example",
+     "whatsapp": "+919876543299"
+    }
+   ],
+   "outside_calls": 13,
+   "services": [
+    "llm:draft",
+    "llm:quality_check",
+    "email verification service",
+    "llm:match_check",
+    "llm:reply_classify",
+    "platform /onboarding"
+   ],
+   "cfg_used": {
+    "llm": true
+   },
+   "seconds": 0.5
+  },
+  "docs": {
+   "items": 234,
+   "problems": 4,
+   "commands": {
+    "checked": 57,
+    "missing": [],
+    "node_commands": 39,
+    "python_commands": 12
+   },
+   "openapi": {
+    "paths": 17,
+    "engine_paths": 14,
+    "problems": [],
+    "undocumented_api_routes": [
+     "/api/review",
+     "/api/alerts",
+     "/api/companies",
+     "/api/approvals"
+    ]
+   },
+   "env": {
+    "documented": 77,
+    "read_in_code": 69,
+    "not_in_env_example": [
+     {
+      "name": "CAPS_FILE",
+      "where": "services/src/config.js:32"
+     },
+     {
+      "name": "DKIM_SELECTOR",
+      "where": "services/src/ops/preflight.js:172"
+     },
+     {
+      "name": "SARVAM_API_BASE",
+      "where": "services/src/voice/sarvam.js:90"
+     },
+     {
+      "name": "<MAILBOX_n>_SMTP_USER",
+      "where": "services/src/outreach/transport.js:30"
+     }
+    ],
+    "never_read": [
+     {
+      "name": "EXPORT_S3_URI",
+      "where": ".env.example:180",
+      "read_by_ops_only": true
+     }
+    ]
+   },
+   "configs": {
+    "referenced": 13,
+    "parsed": 11,
+    "problems": []
+   },
+   "tests": {
+    "real": {
+     "node": 257,
+     "python": 272,
+     "total": 529,
+     "node_how": "static count of test( and it( calls in services/test/*.test.js",
+     "python_how": "pytest --collect-only (collects, runs nothing)"
+    },
+    "quoted": [
+     {
+      "where": "README.md:13",
+      "node": 258,
+      "python": 272,
+      "total": 530
+     },
+     {
+      "where": "docs/HANDOVER.md:155",
+      "node": 258
+     },
+     {
+      "where": "docs/HANDOVER.md:156",
+      "python": 272
+     }
+    ],
+    "mismatches": []
+   },
+   "seconds": 2.2
+  },
+  "matching": {
+   "matching": {
+    "pairs": 48,
+    "same": 34,
+    "different": 14,
+    "startups": 47,
+    "companies": 68,
+    "thresholds": {
+     "LINK_P": 0.98,
+     "REVIEW_P": 0.3,
+     "MARGIN_BITS": 6,
+     "model": "kb-match-v2"
+    },
+    "main_run": "exact_and_splink",
+    "runs": {
+     "exact_and_splink": {
+      "links": 16,
+      "correct_links": 16,
+      "wrong_links": 0,
+      "precision": 1,
+      "recall": 0.4706,
+      "same_pairs_linked_or_sent_to_review": "29/34",
+      "wrong_links_list": [],
+      "misses": [
+       {
+        "id": "spacing.joined_word",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "opc.dropped_by_founder",
+        "category": "(OPC)",
+        "label": "same",
+        "outcome": "review",
+        "why": "same name under another legal form; confirm it is the same business",
+        "name_agreement": "same"
+       },
+       {
+        "id": "spacing.split_word",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "spacing.joined_generic",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "typo.distinctive_word",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "typo.generic_word",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "typo.doubled_letter",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "translit.shri_shree",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "best candidate too weak or contradicted",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.laxmi_lakshmi",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.devanagari",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.krushi_krishi",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "translit.compound_word",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.two_vowels",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "plural.solar_solars",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "plural.technologies",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "ignorable.the_company",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "plural.ventures",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "review",
+        "why": "probability below the automatic threshold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "year.founder_year_far",
+        "category": "same name, other facts disagree",
+        "label": "same",
+        "outcome": "review",
+        "why": "the founder's year of establishment is more than a year from incorporation",
+        "name_agreement": "same"
+       }
+      ],
+      "seconds": 1.2,
+      "pairs_scored": 20
+     },
+     "exact_only": {
+      "links": 16,
+      "correct_links": 16,
+      "wrong_links": 0,
+      "precision": 1,
+      "recall": 0.4706,
+      "same_pairs_linked_or_sent_to_review": "18/34",
+      "wrong_links_list": [],
+      "misses": [
+       {
+        "id": "spacing.joined_word",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "opc.dropped_by_founder",
+        "category": "(OPC)",
+        "label": "same",
+        "outcome": "review",
+        "why": "same name under another legal form; confirm it is the same business",
+        "name_agreement": "same"
+       },
+       {
+        "id": "spacing.split_word",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "spacing.joined_generic",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "typo.distinctive_word",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "typo.generic_word",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "typo.doubled_letter",
+        "category": "spelling slip",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "translit.shri_shree",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.laxmi_lakshmi",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.devanagari",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.krushi_krishi",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "translit.compound_word",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "translit.two_vowels",
+        "category": "Hindi and English transliteration",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "different"
+       },
+       {
+        "id": "plural.solar_solars",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "typo"
+       },
+       {
+        "id": "plural.technologies",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "ignorable.the_company",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "plural.ventures",
+        "category": "spacing and punctuation",
+        "label": "same",
+        "outcome": "not linked",
+        "why": "no company with a similar name in the CIN universe we hold",
+        "name_agreement": "same"
+       },
+       {
+        "id": "year.founder_year_far",
+        "category": "same name, other facts disagree",
+        "label": "same",
+        "outcome": "review",
+        "why": "the founder's year of establishment is more than a year from incorporation",
+        "name_agreement": "same"
+       }
+      ],
+      "seconds": 0,
+      "pairs_scored": 0
+     }
+    },
+    "rows": [
+     {
+      "id": "form.pvt_ltd",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "form.pvt_dot_ltd_dot",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "form.p_ltd",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "form.private_ltd",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "form.ms_prefix",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "spacing.joined_word",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "opc.written_both",
+      "category": "(OPC)",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "opc.after_form",
+      "category": "(OPC)",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "opc.dropped_by_founder",
+      "category": "(OPC)",
+      "label": "same",
+      "outcome": "review",
+      "why": "same name under another legal form; confirm it is the same business",
+      "name_agreement": "same"
+     },
+     {
+      "id": "amp.startup_ampersand",
+      "category": "& and and",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "amp.register_ampersand",
+      "category": "& and and",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "punct.hyphen",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "punct.dot_ai",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "spacing.split_word",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "spacing.joined_generic",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "typo.distinctive_word",
+      "category": "spelling slip",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "typo.generic_word",
+      "category": "spelling slip",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "typo.doubled_letter",
+      "category": "spelling slip",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "translit.shri_shree",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "different"
+     },
+     {
+      "id": "translit.laxmi_lakshmi",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "not linked",
+      "why": "no company with a similar name in the CIN universe we hold",
+      "name_agreement": "different"
+     },
+     {
+      "id": "translit.devanagari",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "not linked",
+      "why": "no company with a similar name in the CIN universe we hold",
+      "name_agreement": "different"
+     },
+     {
+      "id": "translit.krushi_krishi",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "translit.compound_word",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "not linked",
+      "why": "no company with a similar name in the CIN universe we hold",
+      "name_agreement": "different"
+     },
+     {
+      "id": "translit.two_vowels",
+      "category": "Hindi and English transliteration",
+      "label": "same",
+      "outcome": "not linked",
+      "why": "no company with a similar name in the CIN universe we hold",
+      "name_agreement": "different"
+     },
+     {
+      "id": "llp.llp_vs_company",
+      "category": "LLP against company",
+      "label": "different",
+      "outcome": "review",
+      "why": "same name: probably an LLP that converted into a company; confirm before linking",
+      "name_agreement": "same"
+     },
+     {
+      "id": "llp.llp_same",
+      "category": "LLP against company",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "llp.company_vs_llp",
+      "category": "LLP against company",
+      "label": "different",
+      "outcome": "review",
+      "why": "same name under another legal form; confirm it is the same business",
+      "name_agreement": "same"
+     },
+     {
+      "id": "near.generic_word_differs",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "generic_differs"
+     },
+     {
+      "id": "near.india_added",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "generic_differs"
+     },
+     {
+      "id": "near.infotech_infratech",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "different"
+     },
+     {
+      "id": "near.exports_impex",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "different"
+     },
+     {
+      "id": "near.one_letter_names",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "plural.solar_solars",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "typo"
+     },
+     {
+      "id": "near.older_business_india_added",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "generic_differs"
+     },
+     {
+      "id": "near.word_added",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "different"
+     },
+     {
+      "id": "plural.technologies",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "near.generic_word_added",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "generic_differs"
+     },
+     {
+      "id": "ignorable.the_company",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "plural.ventures",
+      "category": "spacing and punctuation",
+      "label": "same",
+      "outcome": "review",
+      "why": "probability below the automatic threshold",
+      "name_agreement": "same"
+     },
+     {
+      "id": "sibling.right_one",
+      "category": "different companies, near-identical names",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "sibling.wrong_one",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "linked to U17000UP2026PTC200039",
+      "why": null,
+      "name_agreement": "generic_differs"
+     },
+     {
+      "id": "year.founder_year_far",
+      "category": "same name, other facts disagree",
+      "label": "same",
+      "outcome": "review",
+      "why": "the founder's year of establishment is more than a year from incorporation",
+      "name_agreement": "same"
+     },
+     {
+      "id": "district.same_name_other_district",
+      "category": "same brand, different districts",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "district.brand_elsewhere",
+      "category": "same brand, different districts",
+      "label": "different",
+      "outcome": "review",
+      "why": "on the portal since 2019-05-01, before this company was incorporated on 2026-02-12",
+      "name_agreement": "same"
+     },
+     {
+      "id": "district.partnership_elsewhere",
+      "category": "same brand, different districts",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "a partnership has no CIN or LLPIN",
+      "name_agreement": "same"
+     },
+     {
+      "id": "brand.bare_name_dated",
+      "category": "same name, other facts disagree",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     },
+     {
+      "id": "near.distinctive_word_differs",
+      "category": "different companies, near-identical names",
+      "label": "different",
+      "outcome": "not linked",
+      "why": "no company with a similar name in the CIN universe we hold",
+      "name_agreement": "different"
+     },
+     {
+      "id": "exact.plain",
+      "category": "legal form spelling",
+      "label": "same",
+      "outcome": "linked",
+      "why": null,
+      "name_agreement": "same"
+     }
+    ],
+    "name_level": {
+     "pairs": 40,
+     "predicted_same": 26,
+     "correct": 25,
+     "wrong": 1,
+     "precision": 0.9615,
+     "recall": 0.8333,
+     "wrong_list": [
+      "near.one_letter_names"
+     ],
+     "missed_list": [
+      "translit.shri_shree",
+      "translit.laxmi_lakshmi",
+      "translit.devanagari",
+      "translit.compound_word",
+      "translit.two_vowels"
+     ]
+    },
+    "notes": []
+   },
+   "websites": {
+    "cases": 30,
+    "correct": 27,
+    "directories_social_rejected": "22/23",
+    "own_sites_accepted": "5/7",
+    "wrong_accepts": [
+     {
+      "id": "builder.weebly",
+      "url": "https://tarovikagrofoods.weebly.com/",
+      "expect": "reject",
+      "got": "accept",
+      "ok": false,
+      "why": "a free site-builder subdomain, the same kind as wixsite.com, which the step does refuse"
+     }
+    ],
+    "wrong_rejects": [
+     {
+      "id": "own.two_letter_initials",
+      "url": "https://vnagro.example/",
+      "expect": "accept",
+      "got": "reject",
+      "ok": false,
+      "why": "a name of initials has no word of three letters, but this is plainly its site"
+     },
+     {
+      "id": "own.honorific_dropped",
+      "url": "https://ganeshagro.example/",
+      "expect": "accept",
+      "got": "reject",
+      "ok": false,
+      "why": "the domain drops \"Shri\", as companies often do"
+     }
+    ],
+    "rows": [
+     {
+      "id": "own.exact_domain",
+      "url": "https://tarovikagro.example/",
+      "expect": "accept",
+      "got": "accept",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "own.first_word_domain",
+      "url": "https://www.tarovik.example/about",
+      "expect": "accept",
+      "got": "accept",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "own.hyphen_domain",
+      "url": "https://tarovik-foods.example/",
+      "expect": "accept",
+      "got": "accept",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "own.cin_on_page",
+      "url": "https://shivomherbals.example/",
+      "expect": "accept",
+      "got": "accept",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "own.two_letter_initials",
+      "url": "https://vnagro.example/",
+      "expect": "accept",
+      "got": "reject",
+      "ok": false,
+      "why": "a name of initials has no word of three letters, but this is plainly its site"
+     },
+     {
+      "id": "own.honorific_dropped",
+      "url": "https://ganeshagro.example/",
+      "expect": "accept",
+      "got": "reject",
+      "ok": false,
+      "why": "the domain drops \"Shri\", as companies often do"
+     },
+     {
+      "id": "own.common_surname",
+      "url": "https://sharmaagro.example/",
+      "expect": "accept",
+      "got": "accept",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.linkedin",
+      "url": "https://www.linkedin.com/company/tarovik-agro-foods",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.linkedin_country",
+      "url": "https://in.linkedin.com/company/tarovik",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.facebook",
+      "url": "https://www.facebook.com/tarovikagrofoods",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.facebook_mobile",
+      "url": "https://m.facebook.com/tarovikagro",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.instagram",
+      "url": "https://www.instagram.com/tarovik.agro/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "social.youtube",
+      "url": "https://www.youtube.com/@tarovikagro",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "directory.zaubacorp",
+      "url": "https://www.zaubacorp.com/company/TAROVIK-AGRO-FOODS-PRIVATE-LIMITED/U01100UP2026PTC310001",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "directory.tofler",
+      "url": "https://www.tofler.in/tarovik-agro-foods-private-limited/company/U01100UP2026PTC310001",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "directory.thecompanycheck",
+      "url": "https://www.thecompanycheck.com/company/tarovik-agro-foods-private-limited/U01100UP2026PTC310001",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "directory.crunchbase",
+      "url": "https://www.crunchbase.com/organization/tarovik-agro-foods",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "directory.dnb",
+      "url": "https://www.dnb.com/business-directory/company-profiles.tarovik_agro_foods_private_limited.html",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "marketplace.indiamart",
+      "url": "https://www.indiamart.com/tarovik-agro-foods/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "marketplace.justdial",
+      "url": "https://www.justdial.com/Lucknow/Tarovik-Agro-Foods/0522P1234",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "marketplace.tradeindia",
+      "url": "https://www.tradeindia.com/tarovik-agro-foods/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "builder.wixsite",
+      "url": "https://tarovikagro.wixsite.com/home",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "builder.business_site",
+      "url": "https://tarovik-agro-foods.business.site/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "builder.github_io",
+      "url": "https://tarovik.github.io/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "builder.weebly",
+      "url": "https://tarovikagrofoods.weebly.com/",
+      "expect": "reject",
+      "got": "accept",
+      "ok": false,
+      "why": "a free site-builder subdomain, the same kind as wixsite.com, which the step does refuse"
+     },
+     {
+      "id": "builder.blogspot",
+      "url": "https://tarovikagro.blogspot.com/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "other.same_word_other_business",
+      "url": "https://www.tarovikhospital.example/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "other.parked_domain",
+      "url": "https://tarovikagro.example/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "other.generic_word_domain",
+      "url": "https://herbals.example/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     },
+     {
+      "id": "other.surname_other_business",
+      "url": "https://sharmasweets.example/",
+      "expect": "reject",
+      "got": "reject",
+      "ok": true,
+      "why": null
+     }
+    ]
+   },
+   "search_egress": {
+    "queries": [
+     "\"ZEPHYRA HERBALS\" Lucknow"
+    ],
+    "fetched": [
+     "https://zephyraherbals.example/"
+    ],
+    "leaked": []
+   },
+   "seconds": 2.2,
+   "network_blocked": []
+  }
+ }
+}

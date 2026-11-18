@@ -1,0 +1,42 @@
+{
+  "_comment": "Search results for the website confirmation eval (evals/ingest_matching.py), run through enrich/websites.py's own search step with a fake search API and a fake page fetcher. Companies and sites are invented. 'accept': this is the company's own website and the step should record it; 'reject': a directory, marketplace, social network, shared site builder or someone else's site, which must never be taken for the company's. The home page each fake fetch returns is 'html'.",
+  "companies": {
+    "tarovik": {"cin": "U01100UP2026PTC310001", "name": "TAROVIK AGRO FOODS PRIVATE LIMITED", "district": "Lucknow"},
+    "shivom": {"cin": "U21002UP2026PTC310002", "name": "SHIVOM HERBALS PRIVATE LIMITED", "district": "Kanpur Nagar"},
+    "vn": {"cin": "U01100UP2026PTC310003", "name": "VN AGRO PRIVATE LIMITED", "district": "Agra"},
+    "shriganesh": {"cin": "U01100UP2026PTC310004", "name": "SHRI GANESH AGRO PRIVATE LIMITED", "district": "Varanasi"},
+    "sharma": {"cin": "U10790UP2026PTC310005", "name": "SHARMA AGRO PRIVATE LIMITED", "district": "Meerut"}
+  },
+  "cases": [
+    {"id": "own.exact_domain", "company": "tarovik", "url": "https://tarovikagro.example/", "html": "<title>Tarovik Agro Foods</title><h1>Welcome to Tarovik Agro Foods</h1>", "expect": "accept"},
+    {"id": "own.first_word_domain", "company": "tarovik", "url": "https://www.tarovik.example/about", "html": "<h1>Tarovik Agro Foods Pvt Ltd, Lucknow</h1>", "expect": "accept"},
+    {"id": "own.hyphen_domain", "company": "tarovik", "url": "https://tarovik-foods.example/", "html": "<p>Tarovik Agro Foods: millets from Lucknow</p>", "expect": "accept"},
+    {"id": "own.cin_on_page", "company": "shivom", "url": "https://shivomherbals.example/", "html": "<footer>CIN U21002UP2026PTC310002</footer>", "expect": "accept"},
+    {"id": "own.two_letter_initials", "company": "vn", "url": "https://vnagro.example/", "html": "<h1>VN Agro Private Limited</h1>", "expect": "accept", "why": "a name of initials has no word of three letters, but this is plainly its site"},
+    {"id": "own.honorific_dropped", "company": "shriganesh", "url": "https://ganeshagro.example/", "html": "<h1>Shri Ganesh Agro Pvt Ltd</h1>", "expect": "accept", "why": "the domain drops \"Shri\", as companies often do"},
+    {"id": "own.common_surname", "company": "sharma", "url": "https://sharmaagro.example/", "html": "<h1>Sharma Agro Private Limited, Meerut</h1>", "expect": "accept"},
+    {"id": "social.linkedin", "company": "tarovik", "url": "https://www.linkedin.com/company/tarovik-agro-foods", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "social.linkedin_country", "company": "tarovik", "url": "https://in.linkedin.com/company/tarovik", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "social.facebook", "company": "tarovik", "url": "https://www.facebook.com/tarovikagrofoods", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "social.facebook_mobile", "company": "tarovik", "url": "https://m.facebook.com/tarovikagro", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "social.instagram", "company": "tarovik", "url": "https://www.instagram.com/tarovik.agro/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "social.youtube", "company": "tarovik", "url": "https://www.youtube.com/@tarovikagro", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "directory.zaubacorp", "company": "tarovik", "url": "https://www.zaubacorp.com/company/TAROVIK-AGRO-FOODS-PRIVATE-LIMITED/U01100UP2026PTC310001", "html": "<h1>TAROVIK AGRO FOODS PRIVATE LIMITED</h1><p>CIN U01100UP2026PTC310001</p>", "expect": "reject"},
+    {"id": "directory.tofler", "company": "tarovik", "url": "https://www.tofler.in/tarovik-agro-foods-private-limited/company/U01100UP2026PTC310001", "html": "<h1>Tarovik Agro Foods Private Limited</h1>", "expect": "reject"},
+    {"id": "directory.thecompanycheck", "company": "tarovik", "url": "https://www.thecompanycheck.com/company/tarovik-agro-foods-private-limited/U01100UP2026PTC310001", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "directory.crunchbase", "company": "tarovik", "url": "https://www.crunchbase.com/organization/tarovik-agro-foods", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "directory.dnb", "company": "tarovik", "url": "https://www.dnb.com/business-directory/company-profiles.tarovik_agro_foods_private_limited.html", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "marketplace.indiamart", "company": "tarovik", "url": "https://www.indiamart.com/tarovik-agro-foods/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "marketplace.justdial", "company": "tarovik", "url": "https://www.justdial.com/Lucknow/Tarovik-Agro-Foods/0522P1234", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "marketplace.tradeindia", "company": "tarovik", "url": "https://www.tradeindia.com/tarovik-agro-foods/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "builder.wixsite", "company": "tarovik", "url": "https://tarovikagro.wixsite.com/home", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "builder.business_site", "company": "tarovik", "url": "https://tarovik-agro-foods.business.site/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "builder.github_io", "company": "tarovik", "url": "https://tarovik.github.io/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "builder.weebly", "company": "tarovik", "url": "https://tarovikagrofoods.weebly.com/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject", "why": "a free site-builder subdomain, the same kind as wixsite.com, which the step does refuse"},
+    {"id": "builder.blogspot", "company": "tarovik", "url": "https://tarovikagro.blogspot.com/", "html": "<h1>Tarovik Agro Foods</h1>", "expect": "reject"},
+    {"id": "other.same_word_other_business", "company": "tarovik", "url": "https://www.tarovikhospital.example/", "html": "<h1>Tarovik Hospital, Lucknow</h1>", "expect": "reject"},
+    {"id": "other.parked_domain", "company": "tarovik", "url": "https://tarovikagro.example/", "html": "<h1>This domain is for sale</h1>", "expect": "reject"},
+    {"id": "other.generic_word_domain", "company": "shivom", "url": "https://herbals.example/", "html": "<p>Shivom Herbals is one of our suppliers</p>", "expect": "reject"},
+    {"id": "other.surname_other_business", "company": "sharma", "url": "https://sharmasweets.example/", "html": "<h1>Sharma Sweets, Meerut</h1>", "expect": "reject"}
+  ]
+}

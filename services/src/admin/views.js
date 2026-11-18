@@ -65,6 +65,11 @@ const extLink = (url, text, context) => {
 // Badge colours keep one meaning each: blue = in the plan, purple = in contact, green = eligible or
 // won, amber = needs a person, red = urgent or failed, grey = nothing to do (see style.css).
 const badge = (text, kind) => html`<span class="badge ${kind}">${text}</span>`;
+/** " (sub-sector, high confidence)", leaving out whatever the classifier did not say. */
+const themeDetail = (t) => {
+  const parts = [t.sub_sector, t.confidence ? `${t.confidence} confidence` : null].filter(Boolean);
+  return parts.length ? ` (${parts.join(', ')})` : '';
+};
 const stageBadge = (lead) => (lead?.holdout ? badge('Holdout', 'holdout') : lead ? badge(STAGE_LABEL[lead.stage] ?? lead.stage, `stage-${lead.stage}`) : badge('No lead', 'muted'));
 
 export function layout({ title, user, csrf, active, body, notice, reviewWaiting, approvalsWaiting, inboxWaiting, callsWaiting, banner = null }) {
@@ -106,7 +111,7 @@ export function loginPage({ error }) {
 
 function rulesBanner(rules) {
   if (!rules) return '';
-  if (rules.rules_confirmed) return html`<p class="banner ok">Deadline and scheme rules are confirmed (${rules.rules_version}).</p>`;
+  if (rules.rules_confirmed) return html`<p class="banner ok">Deadline and scheme rules are confirmed${rules.rules_version ? html` · ${rules.rules_version}` : ''}.</p>`;
   return html`<p class="banner warn"><strong>Rules awaiting a CA's confirmation.</strong> Deadlines and scheme verdicts are shown here for review; no message will use them until they are confirmed. Verdicts come from ${rules.verdicts_by === 'platform_rules_engine' ? "the platform's rules engine" : 'provisional rules until the platform rules engine is connected'}.</p>`;
 }
 
@@ -287,7 +292,7 @@ ${lead?.eligibility_reasons?.length ? html`<p class="banner muted">Not contacted
 ${lead ? html`<section class="grid2">
   <div class="card"><h2>Why it scores ${lead.score?.fit ?? '—'}</h2>
     ${(lead.score?.components ?? []).length ? html`<ul class="points">${lead.score.components.map((p) => html`<li><span class="pts ${p.points < 0 ? 'neg' : ''}">${p.points > 0 ? '+' : ''}${p.points}</span>${p.reason}</li>`)}</ul>` : html`<p class="muted">No score breakdown yet.</p>`}
-    ${lead.score?.theme ? html`<p class="muted small">Theme: ${lead.score.theme.name} (${lead.score.theme.sub_sector}, ${lead.score.theme.confidence} confidence) · ${lead.score.version}</p>` : ''}
+    ${lead.score?.theme ? html`<p class="muted small">Theme: ${lead.score.theme.name}${themeDetail(lead.score.theme)} · ${lead.score.version}</p>` : ''}
   </div>
   <div class="card"><h2>Next action</h2><p class="next-action">${label(ACTION_LABEL, lead.next_action?.type ?? 'none')}</p>${lead.next_action?.why ? html`<p class="muted">${sentence(lead.next_action.why)}</p>` : ''}
     ${lead.holdout_draw ? html`<p class="muted small">Holdout draw ${lead.holdout_draw.method} · u = ${lead.holdout_draw.u?.toFixed(4)}</p>` : ''}</div>
@@ -297,7 +302,7 @@ ${lead ? html`<section class="grid2">
   ${needs.deadlines.map((d) => html`<tr><td><strong>${d.title}</strong>${d.note ? html`<div class="muted small">${d.note}</div>` : ''}${d.penalty ? html`<div class="muted small">${d.penalty}</div>` : ''}<div class="muted small">${d.form ? html`${d.form} · ` : ''}${extLink(d.source_url, d.law ?? (webUrl(d.source_url) ? 'Source' : ''))}</div></td><td class="date">${d.due ? day(d.due) : '—'}${d.days_left != null && d.days_left >= 0 ? html`<div class="muted small">${d.days_left === 0 ? 'today' : `in ${d.days_left} days`}</div>` : ''}</td><td>${badge(DUE_LABEL[d.status] ?? d.status, `due-${d.status}`)}</td></tr>`)}
   </tbody></table>` : html`<p class="muted empty">No deadlines worked out for this company yet. They come with the nightly need run.</p>`}</section>
 <section class="card"><h2>Schemes</h2>${needs?.schemes?.length ? html`<div class="schemes">
-  ${needs.schemes.map((s) => html`<div class="scheme"><div class="scheme-head"><strong>${s.name}</strong>${badge(VERDICT_LABEL[s.verdict] ?? s.verdict, `v-${s.verdict}`)}</div><p class="small">${s.benefit}</p><p class="muted small">${s.reason}</p>${s.missing?.length ? html`<p class="muted small">To confirm: ${s.missing.join(', ')}</p>` : ''}<p class="small">${webUrl(s.source_url) ? extLink(s.source_url, 'Source', `for ${s.name}`) : 'No source link'} · checked ${s.checked_on ?? '—'} · ${s.by === 'platform_rules_engine' ? 'platform rules engine' : 'provisional rules'}</p></div>`)}
+  ${needs.schemes.map((s) => html`<div class="scheme"><div class="scheme-head"><strong>${s.name}</strong>${badge(VERDICT_LABEL[s.verdict] ?? s.verdict, `v-${s.verdict}`)}</div><p class="small">${s.benefit}</p><p class="muted small">${s.reason}</p>${s.missing?.length ? html`<p class="muted small">To confirm: ${s.missing.join(', ')}</p>` : ''}<p class="small">${webUrl(s.source_url) ? extLink(s.source_url, 'Source', `for ${s.name}`) : 'No source link'} · ${s.checked_on ? `checked ${s.checked_on}` : 'not yet checked'} · ${s.by === 'platform_rules_engine' ? 'platform rules engine' : 'provisional rules'}</p></div>`)}
 </div>` : html`<p class="muted empty">No scheme verdicts for this company yet.</p>`}</section>` : ''}
 <section class="grid2">
   <div class="card"><h2>Registry and vendor facts</h2>${registryFacts ?? html`<p class="muted empty">No registry facts yet.</p>`}</div>

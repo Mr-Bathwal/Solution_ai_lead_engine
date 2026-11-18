@@ -205,9 +205,11 @@ Every page has a JSON twin, so the platform's Admin portal can show the same dat
 
 **Accessibility:** after the review, an automated WCAG 2.2 AA check (axe-core) and a contrast check of every text node find nothing in light or dark mode at 1,366, 768, 360 or 320 pixels (before: 4–5 failing rules and about 270 failing text nodes per page set). The pages reflow at 320 pixels, work with Windows high-contrast colours, print cleanly, and start with a "Skip to content" link.
 
-![Pipeline](img/admin-pipeline.png)
-![Company view](img/admin-company.png)
-![Review queue](img/admin-review.png)
+*Screenshots of the fictional demo (`lead-engine demo:seed`); the originals showed real companies and are kept out of the public repository.*
+
+![Pipeline](img/demo-admin-pipeline.png)
+![Company view](img/demo-admin-company.png)
+![Review queue](img/demo-admin-review.png)
 
 ---
 
