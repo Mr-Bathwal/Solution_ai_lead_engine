@@ -261,6 +261,7 @@ node src/cli.js kb:ai-check                   # the AI model's advice on unsure 
 node src/cli.js admin:service portal reviewer   # a service token for the platform's portal (or admin:platform-headers)
 cd ../ingest && .venv/Scripts/python -m leadengine ingest inbox   # load an uploaded MCA file now (the nightly does it at 05:00)
 .venv/Scripts/python -m leadengine enrich websites   # shortlisted companies' websites and the role address each publishes (nightly)
+.venv/Scripts/python -m leadengine ingest news --dry-run   # funding news matched to UP companies, for a person to confirm (daily, 07:15)
 cd ../services
 cd ../ingest && .venv/Scripts/python -m leadengine eval extraction && .venv/Scripts/python -m leadengine export parquet
 

@@ -238,6 +238,35 @@ paths:
         "200": { description: saved }
         "400": { description: "not a pair the matcher proposed, or a bad decision" }
         "403": { description: reviewers only }
+  /api/signals:
+    get:
+      tags: [engine]
+      summary: Funding news the engine matched to a UP company, waiting for a person (newest first), and the latest decisions
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+  /api/signals/{id}:
+    post:
+      tags: [engine]
+      summary: A person confirms or rejects one news item (reviewer role or higher; logged before it is saved). A confirmed item shows on the company's page
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { enum: [confirm, reject] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: saved }
+        "400": { description: a decision that is not confirm or reject }
+        "403": { description: reviewers only }
+        "404": { description: no such news item }
+        "409": { description: already decided }
   /api/exports:
     get:
       tags: [engine]

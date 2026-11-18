@@ -33,6 +33,7 @@ The code for Phase 4 is built and tested (`docs/WEEK4_REPORT.md`). The items bel
 | 24 | After 100 reviewer decisions: look at the agreement, and decide on sample approval | Sujas and Gourav | from about mid-December | free | `node src/cli.js approval:agreement`; if 95% or more, set `approval.mode` to `sample` with `switched_on_by` and `switched_on_on` (`docs/HANDOVER.md`, "Approving a sample") |
 | 25 | A search API key for finding company websites | Gourav | any time | free tier (Google Programmable Search or Brave), at most 1,000 searches a month (`caps.json`) | `WEB_SEARCH_PROVIDER` and `WEB_SEARCH_KEY` set; `leadengine enrich search-probe "<a company>"` answers; the nightly's `websites` step reports `searched` |
 | 26 | Approve (or not) writing to addresses on companies' own websites | the lawyer, then Sujas | with the legal review pack | part of the same review | question 2 of the pack answered; if yes, `recipient.use_website_email` set to `true` in `config/outreach.json` |
+| 27 | Check two funding-news sources | Gourav | any time | free | Entrackr's feed (`https://entrackr.com/feed/` answered 404 on 18 Nov): find its current RSS address in a browser and put it in `config/news.json`. GDELT: its robots.txt could not be reached from the laptop, so the fetcher stays away; try `leadengine ingest news --dry-run` from the server, and if GDELT stays unreachable set `gdelt.enabled` to false. Done when the dry run reports every source read |
 
 ## 1. Reading the mailboxes
 

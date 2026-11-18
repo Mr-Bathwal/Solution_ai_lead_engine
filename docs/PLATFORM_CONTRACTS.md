@@ -74,6 +74,8 @@ The engine serves its own Admin pages today (`node services/src/cli.js admin`): 
 | `POST /api/approvals/{id}` | `{"decision": "approve" or "reject", "subject": "...", "body": "...", "note": "..."}`; subject and body only when edited. An edit that fails the quality check is refused (422). Reviewer role or higher; logged. |
 | `POST /api/approvals/{id}/outcome` | `{"outcome": "replied" or "bounced" or "complained"}` for a sent email, until replies are read automatically; a bounce or complaint also suppresses the address |
 | `POST /api/approvals/{id}/resolve` | `{"sent": "yes" or "no"}` for an email whose send was interrupted, after a person has checked the mailbox's Sent folder |
+| `GET /api/signals` | Funding news matched to a UP company, waiting for a person, and the latest decisions |
+| `POST /api/signals/<id>` | `{"decision": "confirm" or "reject", "note": "..."}`. Reviewer role or higher; logged. A confirmed item shows on the company's page |
 | `GET /api/labels` | Pairs to label to measure the matcher (held-out links first), with the precision so far and its 95% interval |
 | `POST /api/labels` | `{"entity": "UPLC_...", "company": "CIN", "decision": "same" or "different" or "unsure"}`. Reviewer role or higher; logged |
 | `GET /api/audit?action=&actor=&from=&to=&page=` | The audit log, newest first, 100 a page (admin role only; reading it is itself logged) |

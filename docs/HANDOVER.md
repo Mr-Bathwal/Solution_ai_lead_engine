@@ -56,6 +56,7 @@ Every draft goes to a person until the quality check has proved it agrees with t
 ### Addresses, campaigns and the AI check
 
 - **Address checks:** before a first email, every address is checked (format, throwaway domains, the domain receives mail, and the verification service if configured). Accept-all domains are held out of the first wave and written to 14 days later (`verification.second_wave_after_days`); dead addresses are never used, and a company whose registered address is dead gets its own chance at a website address found later. A person's address (a founder's own Gmail, say) only ever gets the free checks: it is never sent to the verification service. A domain with no MX record still counts as receiving mail when it has an address record (RFC 5321). The company's timeline shows "address not used" with the reason.
+- **Funding news:** each morning at 07:15, `leadengine ingest news` reads the startup news feeds in `config/news.json` (Inc42, YourStory, Entrackr) and a GDELT news search, through the polite fetcher. A headline counts only if it is about money or a round, and only if the company it names matches exactly one UP company in the knowledge base; then it is proposed, never acted on. A reviewer confirms or rejects it on Admin, "Signals" (linked from Review); a confirmed item shows on the company's page. Only the link, headline, publisher and date are kept, never the article. The first live run (18 Nov) found Entrackr's feed address answering 404 and GDELT's robots.txt unreachable: see `ops/WEEK4_ACTIONS.md` item 27.
 - **Websites:** each night the shortlisted companies with no known website are searched for (through a search API's free tier, once a key is set; again at day 7, 30 and 90 if not found), and a site counts only when its domain and home page name the company. The site's contact page is read, within its robots.txt, for a role address on the company's own domain and a contact form. Those addresses are used for a first email only once `recipient.use_website_email` is on (after the lawyer's answer), and only in place of a missing or personal registered email.
 - **Campaigns:** a campus or event campaign is a line in `config/outreach.json` (`campaigns`) with a code. Its landing page, `PUBLIC_BASE_URL/j/<code>`, lets a founder find their company and open its page; visits, claims, sign-ups and payments from it show on Results, "Campaigns". Because anyone can open a page this way, a claim made from it records nothing, contacts nobody and stops nothing until the person opens the link emailed to the address they gave (`/k/<link>`, once, within 48 hours; at most three such emails a day to one address, none to an address that opted out). Without a sending mailbox and `PUBLIC_BASE_URL` set, claims from campaign pages stay closed.
 - **AI check on unsure matches:** once the LLM gateway has the engine's key, `kb:ai-check` (daily at 05:45) puts the model's advice beside each candidate on the review queue. It never decides.
@@ -151,8 +152,9 @@ About 45 minutes, with Sujas and Murari's team, on 25 November. Bring the server
 
 ## Tests
 
-- **`services`:** `npm test`, 243 tests against a throwaway MongoDB.
-- **`ingest`:** `.venv/bin/python -m pytest`, 260 tests.
+- **`services`:** `npm test`, 258 tests against a throwaway MongoDB.
+- **`ingest`:** `.venv/bin/python -m pytest`, 272 tests.
+- **On every push:** GitHub Actions runs both suites on Linux with a real mongod (`.github/workflows/ci.yml`).
 - **The four test sets:** `eval:qc`, `eval:replies`, `leadengine eval extraction` and `leadengine kb eval`.
 
 Run all of them after any change.

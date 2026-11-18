@@ -13,8 +13,13 @@ __pycache__/
 # node
 node_modules/
 
-# local data (raw pages and uploaded files live in S3 in production)
-data/
+# local data (raw pages and uploaded files live in S3 in production). The one exception is the reply
+# test set, 160 replies written for the build (no real person's), which the inbound tests read; the
+# real labelled replies and the extraction golden set (made from real pages) stay out.
+data/*
+!data/testsets/
+data/testsets/*
+!data/testsets/replies.jsonl
 *.log
 
 # office lock files
