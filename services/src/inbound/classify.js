@@ -78,13 +78,44 @@ const RULES = {
 /** Negations that turn an "interested" phrase around ("not interested" is an opt-out above). */
 const NOT_INTERESTED = /\b(not|no longer|isn'?t|aren'?t) (really )?interested\b|रुचि नहीं|दिलचस्पी नहीं|interest nahi/;
 
-/** The words the rules and the model see: the new text, lower case, with addresses and numbers taken out. */
-export function scrub(text) {
-  return String(text ?? '')
+// words that say the number after them is a phone number (so a 7 to 9 digit landline is one too)
+const PHONE_CUE = /\b(ph|phone|mob|mobile|cell|tel|telephone|call|contact|whatsapp|wa|landline|fax|no)\b\.?\s*(no\.?|number|#)?\s*[:-]?\s*$|फ़ोन|फोन|मोबाइल|नंबर/i;
+const escapeRx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The words the rules and the model see: the new text with addresses, links and phone numbers taken
+ * out, however the number is written (+91 9876 543 210, 0522 4012345, "Ph: 401 2345"), and any of
+ * `names` (the people the engine knows at the company, the sender's display name) replaced too.
+ */
+export function scrub(text, { names = [] } = {}) {
+  let s = String(text ?? '')
     .replace(/[^\s@<>()"']+@[^\s@<>()"']+\.[a-z]{2,}/gi, '[email]')
     .replace(/https?:\/\/\S+/gi, '[link]')
-    .replace(/(?:\+91[\s-]?|\b0)?[6-9]\d{4}[\s-]?\d{5}\b/g, '[phone]')
-    .slice(0, 3000);
+    .replace(/\+?\d[\d\s().\-/]{5,}\d/g, (m, at, all) => {
+      const digits = m.replace(/\D/g, '').length;
+      return digits >= 10 || (digits >= 7 && PHONE_CUE.test(all.slice(Math.max(0, at - 25), at))) ? '[phone]' : m;
+    });
+  // whole names first, then each part of three letters or more ("Rahul Verma", then "Rahul", "Verma")
+  const parts = [...new Set(names.filter((n) => typeof n === 'string').flatMap((n) => [n.trim(), ...n.trim().split(/\s+/)])
+    .filter((n) => n.replace(/[^\p{L}]/gu, '').length >= 3))].sort((a, b) => b.length - a.length);
+  for (const n of parts) s = s.replace(new RegExp(`(?<![\\p{L}])${escapeRx(n)}(?![\\p{L}])`, 'giu'), '[name]');
+  return s.slice(0, 3000);
+}
+
+// a sign-off line; what follows it is a signature (a name, a title, numbers)
+const SIGN_OFF = /^\s*(regards|best regards|kind regards|warm regards|with regards|thanks (and|&) regards|thanks|thank you|many thanks|cheers|sincerely|yours (truly|sincerely|faithfully)|best|best wishes|dhanyavaad|dhanyawad|shukriya|धन्यवाद|सादर|आभार|शुभकामनाओं सहित)[\s,!.]*$/im;
+
+/**
+ * The reply without its sign-off and signature, for what leaves the engine: a signature without the
+ * "-- " separator (most replies from phones) carries the founder's name, title and numbers. Only
+ * cut when the sign-off is not the whole reply and what follows it is short, like a signature.
+ */
+export function withoutSignOff(text) {
+  const t = String(text ?? '');
+  const m = SIGN_OFF.exec(t);
+  if (!m || !t.slice(0, m.index).trim()) return t;
+  const rest = t.slice(m.index + m[0].length).split('\n').map((l) => l.trim()).filter(Boolean);
+  return rest.length <= 6 && rest.every((l) => l.length <= 80) ? t.slice(0, m.index).trimEnd() : t;
 }
 
 /** The rules' answer: { label, confidence, by: 'rules', reasons }. */
@@ -140,7 +171,7 @@ const SAFER = ['unsubscribe', 'wrong_person', 'not_now', 'question', 'interested
  * Classifies one reply. `llm`: an LlmGateway or null. Returns { label, confidence, by, model,
  * version, reasons, rules, ai }.
  */
-export async function classifyReply({ subject, text }, { llm = null, aiBelow = 0.8, companyId = null, leadId = null } = {}) {
+export async function classifyReply({ subject, text }, { llm = null, aiBelow = 0.8, companyId = null, leadId = null, names = [] } = {}) {
   const rules = classifyByRules({ subject, text });
   const base = { ...rules, model: null, version: CLASSIFIER_VERSION, rules, ai: null };
   if (rules.confidence >= aiBelow || !llm?.configured) return base;
@@ -156,7 +187,8 @@ export async function classifyReply({ subject, text }, { llm = null, aiBelow = 0
           'unclear (none of these). The reply may be in English, Hindi or Hinglish.',
           'Answer with JSON only: {"label": "...", "confidence": 0.0 to 1.0, "reason": "at most ten words"}.',
         ].join('\n') },
-        { role: 'user', content: JSON.stringify({ subject: scrub(subject), reply: scrub(text) }) },
+        // only the words of the reply leave the engine: no sign-off, signature, address, number or known name
+        { role: 'user', content: JSON.stringify({ subject: scrub(subject, { names }), reply: scrub(withoutSignOff(text), { names }) }) },
       ],
     });
     ai = parseAnswer(res.content);

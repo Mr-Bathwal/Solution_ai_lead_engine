@@ -87,6 +87,21 @@ function kindOf(parsed, matched) {
  * Handles one email. `deps`: { db, queue, suppression, llm, cfg (outreach.json), clock }.
  * Returns { status, kind, label?, actions, duplicate? }.
  */
+/**
+ * The names a reply may carry that must not leave the engine when the AI reads it: the sender's
+ * display name, the people the engine knows at the company, and its directors from the vendor profile.
+ */
+export async function knownNames(db, companyId, senderName = null) {
+  const names = senderName ? [senderName] : [];
+  if (!companyId) return names;
+  const [people, company] = await Promise.all([
+    db.collection('people').find({ company_ids: companyId }, { projection: { name: 1 } }).limit(50).toArray(),
+    db.collection('companies').findOne({ _id: companyId }, { projection: { 'attrs.directors': 1 } }),
+  ]);
+  const directors = [].concat(company?.attrs?.directors?.value ?? []).map((d) => (typeof d === 'string' ? d : d?.name));
+  return [...names, ...people.map((p) => p.name), ...directors].filter((n) => typeof n === 'string' && n.trim());
+}
+
 export async function processInbound(deps, { mailbox, uid, uidvalidity, internalDate = null, raw }) {
   const { db, cfg, clock = () => new Date() } = deps;
   const ic = cfg.inbound ?? {};
@@ -103,7 +118,7 @@ export async function processInbound(deps, { mailbox, uid, uidvalidity, internal
   let classification = null;
   if (kind === 'reply') {
     classification = await classifyReply({ subject: parsed.subject, text }, { llm: deps.llm, aiBelow: ic.ai_below ?? 0.8,
-      companyId: message?.company_id ?? null, leadId: message?.lead_id ?? null });
+      companyId: message?.company_id ?? null, leadId: message?.lead_id ?? null, names: await knownNames(db, message?.company_id, parsed.from?.name) });
   } else if (kind === 'auto_reply') {
     const r = classifyByRules({ subject: parsed.subject, text });
     if (r.label === 'wrong_person') classification = r;        // "this address is no longer in use": a person checks

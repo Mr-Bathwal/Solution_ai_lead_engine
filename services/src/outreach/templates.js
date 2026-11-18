@@ -3,8 +3,9 @@ import { formatDate } from './evidence.js';
 /**
  * The reviewed message templates: the drafter when no LLM gateway is configured, and the fallback
  * when an AI draft fails the quality check (design 7.5). They are written only from the evidence
- * pack, in English or Hindi, in plain text (no tracking pixel, no images, one link to the company's
- * page and one to unsubscribe).
+ * pack, in English or Hindi, in plain text: no tracking pixel, no images, and three links only: the
+ * company's page, the unsubscribe link, and the sender's own website in the signature (so a founder
+ * can check who is writing; the quality check allows that one and no other).
  *
  * {{page_url}} and {{unsubscribe_url}} stay as placeholders in the draft a person approves; the
  * sender fills them in with the company's own unguessable links at the moment of sending.
@@ -14,7 +15,7 @@ import { formatDate } from './evidence.js';
  * urgency, never a claim to speak for the government.
  */
 
-export const TEMPLATE_VERSION = 'templates-v1';
+export const TEMPLATE_VERSION = 'templates-v2';   // v2: follow-ups say why the founder is getting them; long names shortened in subjects
 export const PAGE_URL = '{{page_url}}';
 export const UNSUBSCRIBE_URL = '{{unsubscribe_url}}';
 
@@ -28,8 +29,14 @@ function signature(sender, org) {
   return [sender.name, sender.title ? `${sender.title}, ${org.name}` : org.name, org.website].filter(Boolean).join('\n');
 }
 
+/** The name without its legal form, for a subject that would otherwise be too long: "Vezras Technologies". */
+export const shortName = (name) => String(name).replace(/\s+(private limited|pvt\.?\s?ltd\.?|limited|llp)$/i, '').trim();
+const SUBJECT_MAX = 90;
+/** The subject with the full name, or the short name when the full one would make it longer than SUBJECT_MAX. */
+const subjectWith = (name, make) => (make(name).length <= SUBJECT_MAX ? make(name) : make(shortName(name)));
+
 const EN = {
-  firstSubject: (p) => `${p.company.name}: your next filing dates`,
+  firstSubject: (p) => subjectWith(p.company.name, (n) => `${n}: your next filing dates`),
   greeting: (p) => `Hello ${p.company.name} team,`,
   intro(p, asOf) {
     const inc = p.company.incorporated;
@@ -70,15 +77,18 @@ const EN = {
   },
   followPage: 'The page with every date and the law behind it is here:',
   followClose: 'If it would help, reply and one of us will answer. If not, you will not get another email from us about this.',
-  followStop: `To stop all emails from us: ${UNSUBSCRIBE_URL}`,
-  needSubject: (p) => (p.need.type === 'deadline' ? `${p.company.name}: one more filing date` : `${p.company.name}: a scheme it may qualify for`),
+  // a follow-up says why too, in fewer words than the first email
+  followWhy: (p) => (p.contact?.basis === 'published_by_company'
+    ? `You are getting this because ${p.company.name} publishes this address on its website, ${p.contact.domain}. To stop all emails from us: ${UNSUBSCRIBE_URL}`
+    : `You are getting this because ${p.company.name}'s registered email address is in the Ministry of Corporate Affairs register. To stop all emails from us: ${UNSUBSCRIBE_URL}`),
+  needSubject: (p) => subjectWith(p.company.name, (n) => (p.need.type === 'deadline' ? `${n}: one more filing date` : `${n}: a scheme it may qualify for`)),
   needIntro: (p) => (p.need.type === 'deadline'
     ? `I wrote to you on ${formatDate(p.thread.first_sent_on, 'en')} about ${p.company.name}'s filing dates. One more date now applies:`
     : `I wrote to you on ${formatDate(p.thread.first_sent_on, 'en')} about ${p.company.name}'s filing dates. Since then, a scheme has come up that may apply.`),
 };
 
 const HI = {
-  firstSubject: (p) => `${p.company.name}: अगली फ़ाइलिंग की तारीखें`,
+  firstSubject: (p) => subjectWith(p.company.name, (n) => `${n}: अगली फ़ाइलिंग की तारीखें`),
   greeting: (p) => `नमस्ते ${p.company.name} टीम,`,
   intro(p, asOf) {
     const inc = p.company.incorporated;
@@ -119,8 +129,10 @@ const HI = {
   },
   followPage: 'हर तारीख और उसके पीछे के क़ानून वाला पेज यहाँ है:',
   followClose: 'अगर इससे मदद मिले, तो जवाब दें; हमारी टीम का कोई व्यक्ति उत्तर देगा। अगर नहीं, तो इस बारे में हमारी ओर से आगे कोई ईमेल नहीं आएगा।',
-  followStop: `हमसे सभी ईमेल बंद करने के लिए: ${UNSUBSCRIBE_URL}`,
-  needSubject: (p) => (p.need.type === 'deadline' ? `${p.company.name}: फ़ाइलिंग की एक और तारीख` : `${p.company.name}: एक योजना जिसके लिए वह पात्र हो सकती है`),
+  followWhy: (p) => (p.contact?.basis === 'published_by_company'
+    ? `आपको यह ईमेल इसलिए मिला है क्योंकि ${p.company.name} ने यह पता अपनी वेबसाइट ${p.contact.domain} पर प्रकाशित किया है। हमसे सभी ईमेल बंद करने के लिए: ${UNSUBSCRIBE_URL}`
+    : `आपको यह ईमेल इसलिए मिला है क्योंकि ${p.company.name} का पंजीकृत ईमेल पता MCA के रजिस्टर में है। हमसे सभी ईमेल बंद करने के लिए: ${UNSUBSCRIBE_URL}`),
+  needSubject: (p) => subjectWith(p.company.name, (n) => (p.need.type === 'deadline' ? `${n}: फ़ाइलिंग की एक और तारीख` : `${n}: एक योजना जिसके लिए वह पात्र हो सकती है`)),
   needIntro: (p) => (p.need.type === 'deadline'
     ? `मैंने ${formatDate(p.thread.first_sent_on, 'hi')} को ${p.company.name} की फ़ाइलिंग की तारीखों के बारे में लिखा था। अब एक और तारीख लागू होती है:`
     : `मैंने ${formatDate(p.thread.first_sent_on, 'hi')} को ${p.company.name} की फ़ाइलिंग की तारीखों के बारे में लिखा था। तब से एक योजना सामने आई है जो लागू हो सकती है।`),
@@ -138,27 +150,31 @@ export function templateDraft(pack, { kind, language = 'en', sender, org, firstS
   const t = TEXT[language];
   if (!t) throw new TypeError(`no templates for language ${language}`);
   const sign = signature(sender, org);
+  // a long name is given in full in the greeting and the last paragraph, and without its legal form in
+  // between, so the email stays within its word limit ("Navyarth ... Private Limited" five times is ten words)
+  const brief = pack.company.name.length > 50 ? { ...pack, company: { ...pack.company, name: shortName(pack.company.name) } } : pack;
   if (kind === 'first_touch') {
-    const blocks = [t.greeting(pack), t.intro(pack, pack.as_of)];
-    if (pack.deadlines.length) blocks.push([t.listHead(pack), ...pack.deadlines.map(t.deadline)].join('\n'));
-    const schemes = t.schemes(pack);
+    const blocks = [t.greeting(pack), t.intro(brief, pack.as_of)];
+    if (pack.deadlines.length) blocks.push([t.listHead(brief), ...pack.deadlines.map(t.deadline)].join('\n'));
+    const schemes = t.schemes(brief);
     if (schemes) blocks.push(schemes);
-    blocks.push(`${t.pageLine(pack)}\n${PAGE_URL}`, t.offer, sign, t.why(pack));
+    blocks.push(`${t.pageLine(brief)}\n${PAGE_URL}`, t.offer, sign, t.why(pack));
     return { subject: t.firstSubject(pack), body: blocks.join('\n\n') };
   }
   if (kind === 'follow_up') {
     if (!firstSubject || !firstSentOn) throw new TypeError('a follow-up needs the first email\'s subject and date');
     const next = pack.deadlines.find((d) => d.status !== 'was_due') ?? pack.deadlines.at(-1) ?? null;
-    const blocks = [t.greeting(pack), `${t.followIntro(pack, firstSentOn)} ${t.followNext(pack, next)}`,
-      `${t.followPage}\n${PAGE_URL}`, t.followClose, sign, t.followStop];
-    return { subject: t.followSubject(firstSubject), body: blocks.join('\n\n') };
+    const blocks = [t.greeting(pack), `${t.followIntro(pack, firstSentOn)} ${t.followNext(brief, next)}`,
+      `${t.followPage}\n${PAGE_URL}`, t.followClose, sign, t.followWhy(pack)];
+    const subject = t.followSubject(firstSubject);
+    return { subject: subject.length <= SUBJECT_MAX ? subject : t.followSubject(firstSubject.replace(pack.company.name, shortName(pack.company.name))), body: blocks.join('\n\n') };
   }
   if (kind === 'new_need') {
     if (!pack.need || !pack.thread?.first_sent_on) throw new TypeError('a new-need message needs pack.need and the first email\'s date');
-    const blocks = [t.greeting(pack), pack.need.type === 'deadline' ? `${t.needIntro(pack)}\n${pack.deadlines.map(t.deadline).join('\n')}` : t.needIntro(pack)];
-    const schemes = pack.need.type === 'scheme' ? t.schemes(pack) : null;
+    const blocks = [t.greeting(pack), pack.need.type === 'deadline' ? `${t.needIntro(brief)}\n${pack.deadlines.map(t.deadline).join('\n')}` : t.needIntro(brief)];
+    const schemes = pack.need.type === 'scheme' ? t.schemes(brief) : null;
     if (schemes) blocks.push(schemes);
-    blocks.push(`${t.pageLine(pack)}\n${PAGE_URL}`, t.offer, sign, t.why(pack));
+    blocks.push(`${t.pageLine(brief)}\n${PAGE_URL}`, t.offer, sign, t.why(pack));
     return { subject: t.needSubject(pack), body: blocks.join('\n\n') };
   }
   throw new TypeError(`no template for ${kind}`);

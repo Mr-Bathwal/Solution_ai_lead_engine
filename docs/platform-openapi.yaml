@@ -178,6 +178,55 @@ paths:
       security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
       parameters: [{ name: month, in: query, schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }]
       responses: { "200": { description: JSON } }
+  /api/companies:
+    get:
+      tags: [engine]
+      summary: UP companies, 50 a page, searchable by name or CIN and filtered by stage and cohort (the Companies page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: part of a name, or a CIN or LLPIN }
+        - { name: stage, in: query, schema: { type: string } }
+        - { name: cohort, in: query, schema: { type: string, pattern: "^\\d{4}-\\d{2}$" } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+      responses: { "200": { description: JSON } }
+  /api/approvals:
+    get:
+      tags: [engine]
+      summary: Drafted emails waiting for a person, with their quality check and evidence (the Approvals page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+  /api/review:
+    get:
+      tags: [engine]
+      summary: Portal startups the matcher was unsure about, with candidates, the AI's advice and the news waiting (the Review page)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
+    post:
+      tags: [engine]
+      summary: A person's decision on one candidate match (reviewer role or higher; logged before it is saved; applies at the next knowledge-base build)
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entity, company, decision]
+              properties:
+                entity: { type: string, pattern: "^UPLC_[0-9]{8}$" }
+                company: { type: string, description: CIN or LLPIN }
+                decision: { enum: [same, different, unsure] }
+                note: { type: string, maxLength: 500 }
+      responses:
+        "200": { description: saved }
+        "400": { description: not a pair the matcher proposed, or a bad decision }
+        "403": { description: reviewers only }
+  /api/alerts:
+    get:
+      tags: [engine]
+      summary: The monitor's open alerts, most severe first
+      security: [{ adminToken: [] }, { serviceToken: [] }, { platformProxy: [] }]
+      responses: { "200": { description: JSON } }
   /api/results:
     get:
       tags: [engine]

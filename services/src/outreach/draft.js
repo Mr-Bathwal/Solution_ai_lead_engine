@@ -31,7 +31,7 @@ export function draftPrompt(pack, { kind, language, fixed, maxWords, feedback = 
     'Name the company exactly as written in the pack. Write each date as in the pack\'s examples ("13 November 2026"; in Hindi "13 नवंबर 2026").',
     'For a deadline whose status is was_due, say it "was due by" the date and that the founder can ignore it if it is done; never say a filing was missed, overdue or late.',
     'Schemes are things the company may qualify for, never promises. Never threaten penalties, never create urgency, never claim to write for the government or the MCA.',
-    `Put the line ${PAGE_URL} on its own line exactly once, as the only link. End the body with the signature and then the opt-out paragraph below, copied exactly.`,
+    `Put the line ${PAGE_URL} on its own line exactly once, as the only link in the text (the signature may carry the sender's website). End the body with the signature and then the opt-out paragraph below, copied exactly.`,
     `At most ${maxWords} words in the body.`,
     'Answer with JSON only: {"subject": "...", "body": "..."}.',
   ].join('\n');
@@ -76,7 +76,8 @@ export class Drafter {
   async draft(pack, ctx) {
     const { kind, language } = ctx;
     const tpl = templateDraft(pack, { kind, language, sender: ctx.sender, org: this.org, firstSubject: ctx.firstSubject, firstSentOn: ctx.firstSentOn });
-    const check = (d) => qualityCheck(d, pack, { kind, language, cfg: this.cfg, org: this.org });
+    // ctx.names: the people the engine knows at the company, whom a company-level email never names
+    const check = (d) => qualityCheck(d, pack, { kind, language, cfg: this.cfg, org: this.org, names: ctx.names ?? [] });
     const tries = [];
     if (this.llm?.configured) {
       // the parts the AI must copy word for word, taken from the template so they are identical

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { classifyByRules, classifyReply } from '../inbound/classify.js';
 import { normalizePhone } from '../util/normalize.js';
+import { knownNames } from '../inbound/process.js';
 
 /**
  * Meta's webhook for the WhatsApp number (design 7.6), POSTed to /hooks/whatsapp on the pages server:
@@ -101,7 +102,9 @@ export function whatsappHooks(deps) {
     if (await db.collection('inbound').findOne({ idem_key: idem }, { projection: { _id: 1 } })) return 'duplicate';
     const isStop = STOP_RX.test(text) || (classifyByRules({ text }).label === 'unsubscribe' && classifyByRules({ text }).confidence >= 0.8);
     const classification = isStop ? { label: 'unsubscribe', confidence: 1, by: 'rules', model: null, version: 'whatsapp-stop-v1', reasons: ['STOP on WhatsApp'] }
-      : await classifyReply({ subject: '', text }, { llm: deps.llm, companyId: person?.company_ids?.[0] ?? null });
+      : await classifyReply({ subject: '', text }, { llm: deps.llm, companyId: person?.company_ids?.[0] ?? null,
+        // the sender's WhatsApp profile name and the people the engine knows at the company never reach the AI
+        names: [...(await knownNames(db, person?.company_ids?.[0] ?? null, contacts?.[0]?.profile?.name ?? null)), person?.name].filter(Boolean) });
     const doc = {
       idem_key: idem, channel: 'whatsapp', mailbox: 'whatsapp', header_message_id: msg.id, in_reply_to: msg.context?.id ?? null, references: null,
       from: { address: phone, name: contacts?.[0]?.profile?.name ? String(contacts[0].profile.name).slice(0, 80) : null }, subject: null,

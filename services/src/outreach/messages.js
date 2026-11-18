@@ -1,6 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { sha256 } from '../util/canonical.js';
 import { qualityCheck } from './qc.js';
+import { knownNames } from '../inbound/process.js';
 
 /**
  * Every outreach message's life, in `messages` (design 7.5):
@@ -77,7 +78,7 @@ export class MessageStore {
     if (edited) {
       subject = String(edit.subject ?? '').replace(/\r\n?/g, '\n').trim();
       body = String(edit.body ?? '').replace(/\r\n?/g, '\n').trim();
-      qc = qualityCheck({ subject, body }, msg.evidence.pack, { kind: msg.kind, language: msg.language, cfg, org });
+      qc = qualityCheck({ subject, body }, msg.evidence.pack, { kind: msg.kind, language: msg.language, cfg, org, names: await knownNames(this.db, msg.company_id) });
     }
     if (decision === 'approve' && !qc.passed) return { ok: false, message: msg, qc };
     const now = this.clock();

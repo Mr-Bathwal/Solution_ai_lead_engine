@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { DeferError, PermanentError } from '../jobs/worker.js';
 import { buildEvidencePack, istDate, packHash, recipientFor } from './evidence.js';
 import { MessageStore } from './messages.js';
+import { knownNames } from '../inbound/process.js';
 import { buildEmail } from './mime.js';
 import { PAGE_URL, UNSUBSCRIBE_URL } from './templates.js';
 
@@ -203,7 +204,7 @@ export function outreachHandlers(deps) {
     const language = first?.language ?? cfg.default_language;
     const mb = mailboxes[mailbox] ?? {};
     const draft = await drafter.draft(pack, {
-      kind, language, sender: { name: mb.name ?? deps.org.name, title: mb.title ?? null }, companyId: cid, leadId: lead._id,
+      kind, language, sender: { name: mb.name ?? deps.org.name, title: mb.title ?? null }, companyId: cid, leadId: lead._id, names: await knownNames(db, cid),
       firstSubject: first?.draft?.subject ?? null, firstSentOn: first?.send?.at ? istDate(first.send.at) : null,
     });
     const r = await store.create({

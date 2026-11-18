@@ -1,159 +1,62 @@
 {
  "meta": {
-  "at": "2026-11-18T19:36:38.412Z",
-  "ist": "2026-11-19 01:06",
-  "seconds": 13.9,
+  "at": "2026-11-18T19:59:09.093Z",
+  "ist": "2026-11-19 01:29",
+  "seconds": 14.4,
   "harnessErrors": [],
   "blocked": []
  },
  "scorecard": [
   [
    "1. Draft factuality and lawfulness",
-   "71 drafts from 37 companies: facts 100% from the pack; every check passed by 0/71 (46/71 if the signature's website link is allowed)"
+   "71 drafts from 37 companies: facts 100% from the pack; every check passed by 0/71 (71/71 if the signature's website link is allowed)"
   ],
   [
    "2. QC sensitivity",
-   "eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 833/1397 (59.6%); 10 of 24 mutation types never caught"
+   "eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1353/1354 (99.9%); 0 of 24 mutation types never caught"
   ],
   [
    "3. Compliance gate",
-   "36/39 cases agree (92.3%); 3 disagreement(s), 0 harness error(s)"
+   "39/39 cases agree (100.0%); 0 disagreement(s), 0 harness error(s)"
   ],
   [
    "4. Privacy egress",
-   "13 outside calls over 6 services; LEAKS on 2 path(s): llm:reply_classify (director name); llm:reply_classify (mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\")"
+   "13 outside calls over 6 services; no canary left the engine"
   ],
   [
    "5. Matching and websites",
-   "48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 29/34); websites 27/30, directories and social networks rejected 22/23; web search egress clean"
+   "48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 29/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean"
   ],
   [
    "6. Docs agree with the code",
-   "234 items checked; 4 mismatch(es)"
+   "243 items checked; 0 mismatch(es)"
   ]
  ],
  "findings": [
   {
-   "severity": 1,
-   "title": "Reply classification sends a founder's name and phone numbers to the LLM gateway",
-   "where": [
-    "services/src/inbound/parse.js:284",
-    "services/src/inbound/classify.js:86"
-   ],
-   "failing": [
-    "reply_classify: a signature without a \"-- \" line: director name",
-    "reply_classify: numbers written other ways: mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\""
-   ],
-   "why": "When the rules are unsure, the reply's new text goes to the gateway's small model (an outside service, possibly outside India, per the legal pack's processor question). newText() drops the signature only after a \"-- \" line, which most people never type, so \"Regards, <name>, Director\" goes out; scrub() removes emails and mobiles written 98765 43210, but not a mobile grouped +91 9876 543 210 nor a landline such as 0522 4012345. Leaked here: director name, mobile, number written \"+91 9876 543 210\", number written \"0522 4012345\". The design's rule is never a person's data to an outside service, and classify.js says the model sees the reply \"with every address and number taken out\"."
-  },
-  {
-   "severity": 2,
-   "title": "The gate does not re-check recipient.use_website_email: a website address drafted while the switch was on is still sent after it is turned off",
-   "where": [
-    "services/src/outreach/gate.js:99",
-    "config/outreach.json:40"
-   ],
-   "failing": [
-    "stop.website_address_switch_turned_off: send (gate: ok)"
-   ],
-   "why": "The switch exists because the lawyer has not yet approved writing to website addresses (legal pack, question 2). If the answer is no and the switch goes off, every approved draft to a website address still in the queue is sent anyway, because the gate accepts the basis published_by_company whatever the switch says. A one-line check at the gate closes it."
-  },
-  {
    "severity": 2,
    "title": "The quality check misses wrong facts whose digits appear elsewhere in the evidence pack",
    "where": [
-    "services/src/outreach/qc.js:77",
-    "services/src/outreach/qc.js:72",
+    "services/src/outreach/qc.js:115",
+    "services/src/outreach/qc.js:91",
     "config/outreach.json:10"
    ],
    "failing": [
-    "date.us_format_wrong (a wrong date written \"Month D, YYYY\"): caught 20/34",
-    "date.swapped (two deadlines' dates swapped): caught 0/20",
-    "section.near_miss (a section one letter off (s.10A as s.10B)): caught 0/22",
-    "form.truncated (a form code cut short (INC-20A as INC-20)): caught 0/35",
-    "amount.figure_from_a_date (an invented amount whose figure appears in a date of the pack): caught 0/64",
     "amount.misattributed (a scheme amount from the pack given to the wrong scheme): caught 1/2"
    ],
    "why": "facts.numbers checks each number in a draft against the set of every digit string in the pack, without context, and facts.forms accepts any form that is a substring of the pack's text. So \"₹13 lakh\" passes when a date in the pack is the 13th, two deadlines' dates can be swapped, \"INC-20A\" can become \"INC-20\" and \"s.10A\" \"s.10B\". The templates make none of these mistakes (Eval 1: no factual error in any draft), but the AI drafter could, and once approval.mode becomes \"sample\" (HANDOVER, design 7.5) 80% of drafts that pass this check are sent without a person reading them."
   },
   {
-   "severity": 3,
-   "title": "The gate accepts a recipient labelled \"consent\" without looking in the consent ledger",
-   "where": [
-    "services/src/outreach/gate.js:99"
-   ],
-   "failing": [
-    "stop.consent_label_without_consent: send"
-   ],
-   "why": "config/outreach.json lists consent as a legal basis for email, and the gate checks only the label on the message. No drafting path creates such a recipient today (recipientFor gives only published_under_law or published_by_company), so this is defence in depth: the day a consented address is used for email, the gate should confirm the consent is in the ledger and not withdrawn, as the WhatsApp and call paths already do."
-  },
-  {
-   "severity": 3,
-   "title": "A company whose CIN was issued outside UP is emailed if its record says state UP",
-   "where": [
-    "services/src/outreach/gate.js:80",
-    "schema/collections.json:14"
-   ],
-   "failing": [
-    "stop.cin_says_not_up (CIN U62099DL2026PTC300102): send"
-   ],
-   "why": "\"UP only\" is enforced by the database on the state field alone. The CIN carries the state of registration (characters 7-8); a record mislabelled upstream is contacted. A cheap cross-check in the validator or the gate would hold the promise even when an ingest step is wrong."
-  },
-  {
-   "severity": 3,
-   "title": "The quality check misses an extra link written as a bare domain, a director named, another company's name in the greeting, a penalty threat in other words, urgency in other words, a claim that a filing was not made, in other words",
-   "where": [
-    "services/src/outreach/qc.js:40",
-    "services/src/outreach/qc.js:35",
-    "config/outreach.json:52"
-   ],
-   "failing": [
-    "link.extra_bare_domain (an extra link written as a bare domain): caught 0/68",
-    "person.director_named (a director named): caught 0/68",
-    "company.other_in_greeting (another company's name in the greeting): caught 0/68",
-    "tone.penalty_paraphrase (a penalty threat in other words): caught 0/68",
-    "tone.urgency_paraphrase (urgency in other words): caught 0/68",
-    "tone.missed_paraphrase (a claim that a filing was not made, in other words): caught 0/68"
-   ],
-   "why": "The tone rules are fixed phrase lists, so \"Please file on time to avoid penalties\" or \"this filing was not made on time\" pass; links are found only after http(s):// or www.; nothing checks names. A person reading every draft catches these, which is why they rank below the factual misses; under sample approval they would reach founders."
-  },
-  {
-   "severity": 4,
-   "title": "Long company names make the reviewed templates fail their own length limits",
-   "where": [
-    "services/src/outreach/templates.js:32",
-    "services/src/outreach/templates.js:63",
-    "config/outreach.json:48"
-   ],
-   "failing": [
-    "navyarth/first_touch/en: subject 94 characters (limit 90); body 253 words (limit 250)",
-    "navyarth/follow_up/en: subject 98 characters (limit 90)",
-    "omvara/follow_up/en: subject 94 characters (limit 90)"
-   ],
-   "why": "The first subject is \"<name>: your next filing dates\" and a follow-up adds \"Re: \", so a name over 66 characters (62 for a follow-up) breaks the 90-character limit, and a long name repeated in a full pack pushes the body past 250 words. Such a draft is stored as qc_failed: a person must shorten it by hand before it can be approved, every time, and under sample approval it never goes by the engine's route. MCA allows names this long; the templates could shorten the subject instead (for example without \"Private Limited\")."
-  },
-  {
    "severity": 4,
    "title": "Every template email carries a third link (the sender's website in the signature)",
    "where": [
-    "services/src/outreach/templates.js:27",
+    "services/src/outreach/templates.js:28",
     "services/src/outreach/draft.js:34"
    ],
    "failing": [
     "71/71 drafts: other links: https://solutionai.in"
    ],
    "why": "templates.js promises \"one link to the company's page and one to unsubscribe\", and the AI prompt says the page link is \"the only link\", yet the signature it must copy word for word holds https://solutionai.in. qc.js deliberately allows it. Harmless in itself, but the promise, the prompt and the code disagree; decide which is meant."
-  },
-  {
-   "severity": 4,
-   "title": "follow_up emails do not say why the founder is getting them",
-   "where": [
-    "services/src/outreach/templates.js:73"
-   ],
-   "failing": [
-    "24 drafts: aarvik/follow_up/en, bhuvira/follow_up/hi, chandral/follow_up/hi, dhanvio/follow_up/en, ekansh/follow_up/hi, falgun/follow_up/en, garvisha/follow_up/en, hemkosh/follow_up/hi and 16 more"
-   ],
-   "why": "First and new-need emails end with where the address came from (the MCA register or the company's own website); follow-ups end with the unsubscribe link only. A founder who sees only the follow-up (the first went to spam) is never told the source, which matters most for a website address, the basis the lawyer has not yet approved."
   },
   {
    "severity": 4,
@@ -170,57 +73,6 @@
     "translit.two_vowels: not linked (no company with a similar name in the CIN universe we hold)"
    ],
    "why": "Laxmi/Lakshmi, Shri/Shree, a name typed in Devanagari: the founder's company is in the universe but no candidate reaches the review queue, so the startup stays unlinked and its facts never join the company record. Precision is unharmed; recall on Hindi-belt names is."
-  },
-  {
-   "severity": 4,
-   "title": "Name normalisation calls two different one-letter-apart names \"the same but for a slip\"",
-   "where": [
-    "ingest/src/leadengine/names.py:53"
-   ],
-   "failing": [
-    "near.one_letter_names"
-   ],
-   "why": "typo_of treats Hiranyo and Hiranya as one name misspelt. In this run the matcher still did not link them automatically (the probability stayed under the threshold), but the name rule alone offers no protection; it relies on the other conditions."
-  },
-  {
-   "severity": 4,
-   "title": "Website confirmation takes a free site-builder subdomain for the company's own site",
-   "where": [
-    "ingest/src/leadengine/web.py:7"
-   ],
-   "failing": [
-    "builder.weebly: https://tarovikagrofoods.weebly.com/"
-   ],
-   "why": "wixsite.com, blogspot.com and godaddysites.com are refused as shared hosts, but other builders (weebly.com here; similarly jimdo, webnode, myshopify) are not. The contact step then looks for role addresses on that subdomain, so the practical harm is small, but the rule should be a list of kinds, not a handful of names."
-  },
-  {
-   "severity": 4,
-   "title": "Website confirmation rejects real company sites whose names are initials or whose domains drop \"Shri\"",
-   "where": [
-    "ingest/src/leadengine/enrich/websites.py:94",
-    "ingest/src/leadengine/enrich/websites.py:100"
-   ],
-   "failing": [
-    "own.two_letter_initials: https://vnagro.example/",
-    "own.honorific_dropped: https://ganeshagro.example/"
-   ],
-   "why": "distinctive() drops words under three letters and domain_fits() requires the first distinctive word in the domain, so \"VN Agro\" has no distinctive word at all and \"Shri Ganesh Agro\" at ganeshagro.* fails. Safe (nothing wrong is accepted) but those companies never get a website address."
-  },
-  {
-   "severity": 4,
-   "title": "Docs and code disagree",
-   "where": [
-    ".env.example",
-    "docs/HANDOVER.md",
-    "docs/platform-openapi.yaml"
-   ],
-   "failing": [
-    "CAPS_FILE is read (services/src/config.js:32) but not in .env.example",
-    "DKIM_SELECTOR is read (services/src/ops/preflight.js:172) but not in .env.example",
-    "SARVAM_API_BASE is read (services/src/voice/sarvam.js:90) but not in .env.example",
-    "<MAILBOX_n>_SMTP_USER is read (services/src/outreach/transport.js:30) but not in .env.example"
-   ],
-   "why": "The handover is what the team runs the engine from after 25 November; a variable missing from .env.example is a setting nobody will know to set (DKIM_SELECTOR changes what preflight checks)."
   }
  ],
  "results": {
@@ -274,7 +126,7 @@
       "total": 71
      },
      "why.matches_basis": {
-      "passed": 47,
+      "passed": 71,
       "total": 71
      },
      "opt_out.words": {
@@ -294,11 +146,11 @@
       "total": 71
      },
      "length.subject": {
-      "passed": 68,
+      "passed": 71,
       "total": 71
      },
      "length.body": {
-      "passed": 70,
+      "passed": 71,
       "total": 71
      }
     },
@@ -326,22 +178,33 @@
     "skipped": [],
     "engine_qc_failed": [
      {
-      "id": "navyarth/first_touch/en",
+      "id": "bhuvira/first_touch/hi",
       "failed": [
-       "length.subject: the subject must be 1 to 90 characters",
-       "length.body: the body has 253 words; at most 250"
+       "facts.no_other_company: names another company: Private Limited"
       ]
      },
      {
-      "id": "navyarth/follow_up/en",
+      "id": "bhuvira/follow_up/hi",
       "failed": [
-       "length.subject: the subject must be 1 to 90 characters"
+       "facts.no_other_company: names another company: Private Limited"
       ]
      },
      {
-      "id": "omvara/follow_up/en",
+      "id": "tanmayo/first_touch/hi",
       "failed": [
-       "length.subject: the subject must be 1 to 90 characters"
+       "facts.no_other_company: names another company: Private Limited"
+      ]
+     },
+     {
+      "id": "mrinavi/first_touch/en",
+      "failed": [
+       "facts.no_other_company: names another company: Private Limited"
+      ]
+     },
+     {
+      "id": "mrinavi/follow_up/en",
+      "failed": [
+       "facts.no_other_company: names another company: Private Limited"
       ]
      }
     ]
@@ -368,10 +231,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -390,8 +249,10 @@
     {
      "id": "bhuvira/first_touch/hi",
      "basis": "published_under_law",
-     "engine_qc_passed": true,
-     "engine_qc_failed": [],
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "facts.no_other_company"
+     ],
      "failed": [
       {
        "id": "links.no_other_links",
@@ -402,16 +263,14 @@
     {
      "id": "bhuvira/follow_up/hi",
      "basis": "published_under_law",
-     "engine_qc_passed": true,
-     "engine_qc_failed": [],
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "facts.no_other_company"
+     ],
      "failed": [
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -436,10 +295,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -464,10 +319,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -492,10 +343,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -520,10 +367,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -560,10 +403,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -600,10 +439,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -652,10 +487,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -692,10 +523,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -714,45 +541,24 @@
     {
      "id": "navyarth/first_touch/en",
      "basis": "published_under_law",
-     "engine_qc_passed": false,
-     "engine_qc_failed": [
-      "length.subject",
-      "length.body"
-     ],
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
      "failed": [
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "length.subject",
-       "detail": "subject 94 characters (limit 90)"
-      },
-      {
-       "id": "length.body",
-       "detail": "body 253 words (limit 250)"
       }
      ]
     },
     {
      "id": "navyarth/follow_up/en",
      "basis": "published_under_law",
-     "engine_qc_passed": false,
-     "engine_qc_failed": [
-      "length.subject"
-     ],
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
      "failed": [
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
-      },
-      {
-       "id": "length.subject",
-       "detail": "subject 98 characters (limit 90)"
       }
      ]
     },
@@ -777,10 +583,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -817,10 +619,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -857,10 +655,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -891,8 +685,10 @@
     {
      "id": "tanmayo/first_touch/hi",
      "basis": "published_under_law",
-     "engine_qc_passed": true,
-     "engine_qc_failed": [],
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "facts.no_other_company"
+     ],
      "failed": [
       {
        "id": "links.no_other_links",
@@ -921,10 +717,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -961,10 +753,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1037,10 +825,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1077,10 +861,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1105,10 +885,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1145,10 +921,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1173,10 +945,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1237,10 +1005,6 @@
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1259,8 +1023,10 @@
     {
      "id": "mrinavi/first_touch/en",
      "basis": "published_under_law",
-     "engine_qc_passed": true,
-     "engine_qc_failed": [],
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "facts.no_other_company"
+     ],
      "failed": [
       {
        "id": "links.no_other_links",
@@ -1271,16 +1037,14 @@
     {
      "id": "mrinavi/follow_up/en",
      "basis": "published_under_law",
-     "engine_qc_passed": true,
-     "engine_qc_failed": [],
+     "engine_qc_passed": false,
+     "engine_qc_failed": [
+      "facts.no_other_company"
+     ],
      "failed": [
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
       }
      ]
     },
@@ -1299,22 +1063,12 @@
     {
      "id": "omvara/follow_up/en",
      "basis": "published_under_law",
-     "engine_qc_passed": false,
-     "engine_qc_failed": [
-      "length.subject"
-     ],
+     "engine_qc_passed": true,
+     "engine_qc_failed": [],
      "failed": [
       {
        "id": "links.no_other_links",
        "detail": "other links: https://solutionai.in"
-      },
-      {
-       "id": "why.matches_basis",
-       "detail": "no \"why you are getting this\" line (follow_up)"
-      },
-      {
-       "id": "length.subject",
-       "detail": "subject 94 characters (limit 90)"
       }
      ]
     }
@@ -1415,107 +1169,126 @@
    },
    "builtInMisses": [],
    "mutations": {
-    "applied": 1397,
-    "caught": 833,
-    "grader_caught": 1260,
+    "applied": 1354,
+    "caught": 1353,
+    "grader_caught": 1229,
     "by_mutation": {
      "date.shifted": {
       "name": "a deadline one day off",
-      "applied": 64,
-      "caught": 64,
+      "applied": 62,
+      "caught": 62,
       "fired": {
-       "facts.dates": 64
+       "facts.dates": 62,
+       "facts.dates_match_deadlines": 62
       },
-      "grader_caught": 64
+      "grader_caught": 62
      },
      "date.us_format_wrong": {
       "name": "a wrong date written \"Month D, YYYY\"",
-      "applied": 34,
-      "caught": 20,
+      "applied": 35,
+      "caught": 35,
       "fired": {
+       "facts.dates": 35,
        "facts.numbers": 20
       },
-      "grader_caught": 34
+      "grader_caught": 35
      },
      "date.swapped": {
       "name": "two deadlines' dates swapped",
-      "applied": 20,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 20
+      "applied": 19,
+      "caught": 19,
+      "fired": {
+       "facts.dates_match_deadlines": 19
+      },
+      "grader_caught": 19
      },
      "section.invented": {
       "name": "an invented section number",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68
+       "facts.sections": 66,
+       "facts.numbers": 66,
+       "length.body": 4
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "section.near_miss": {
       "name": "a section one letter off (s.10A as s.10B)",
-      "applied": 22,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 22
+      "applied": 20,
+      "caught": 20,
+      "fired": {
+       "facts.sections": 20
+      },
+      "grader_caught": 20
      },
      "form.truncated": {
       "name": "a form code cut short (INC-20A as INC-20)",
-      "applied": 35,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 35
+      "applied": 32,
+      "caught": 32,
+      "fired": {
+       "facts.forms": 32
+      },
+      "grader_caught": 32
      },
      "link.extra_https": {
       "name": "an extra https link",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "links.no_others": 68
+       "links.no_others": 66,
+       "length.body": 1
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "link.extra_bare_domain": {
       "name": "an extra link written as a bare domain",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 68
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "links.no_others": 66,
+       "length.body": 1
+      },
+      "grader_caught": 66
      },
      "link.no_unsubscribe": {
       "name": "the unsubscribe link removed",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "links.unsubscribe_once": 68
+       "links.unsubscribe_once": 66
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "subject.shouted": {
       "name": "the subject in capitals",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "subject.not_shouted": 68
+       "subject.not_shouted": 66
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "amount.invented": {
       "name": "an invented scheme amount",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68
+       "facts.amounts": 66,
+       "facts.numbers": 66,
+       "length.body": 4
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "amount.figure_from_a_date": {
       "name": "an invented amount whose figure appears in a date of the pack",
-      "applied": 64,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 64
+      "applied": 62,
+      "caught": 62,
+      "fired": {
+       "facts.amounts": 62,
+       "length.body": 4
+      },
+      "grader_caught": 62
      },
      "amount.misattributed": {
       "name": "a scheme amount from the pack given to the wrong scheme",
@@ -1528,696 +1301,132 @@
      },
      "phone.standard": {
       "name": "a personal mobile, 98765 43210",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68,
-       "privacy.no_contacts": 68
+       "facts.numbers": 66,
+       "privacy.no_contacts": 66,
+       "length.body": 4
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "phone.plus91_dashes": {
       "name": "a personal mobile, +91-98765-43210",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68,
-       "privacy.no_contacts": 68
+       "facts.numbers": 66,
+       "privacy.no_contacts": 66,
+       "length.body": 3
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "phone.grouped_4_3_3": {
       "name": "a personal mobile, +91 9876 543 210",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68
+       "facts.numbers": 66,
+       "privacy.no_contacts": 66,
+       "length.body": 4
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "phone.landline": {
       "name": "a landline, 0522 4012345",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "facts.numbers": 68
+       "facts.numbers": 66,
+       "privacy.no_contacts": 66,
+       "length.body": 4
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "email.personal": {
       "name": "a personal email address",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "privacy.no_contacts": 68
+       "privacy.no_contacts": 66,
+       "length.body": 3
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "person.director_named": {
       "name": "a director named",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 68
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "privacy.no_person_named": 66,
+       "length.body": 4
+      },
+      "grader_caught": 66
      },
      "company.other_in_greeting": {
       "name": "another company's name in the greeting",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 68
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "facts.no_other_company": 66
+      },
+      "grader_caught": 66
      },
      "opt_out.words_removed": {
       "name": "the opt-out sentence removed, the link kept",
-      "applied": 68,
-      "caught": 68,
+      "applied": 66,
+      "caught": 66,
       "fired": {
-       "opt_out.words": 68
+       "opt_out.words": 66
       },
-      "grader_caught": 68
+      "grader_caught": 66
      },
      "tone.penalty_paraphrase": {
       "name": "a penalty threat in other words",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 68
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "tone.no_pressure": 66,
+       "length.body": 3
+      },
+      "grader_caught": 66
      },
      "tone.urgency_paraphrase": {
       "name": "urgency in other words",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 0
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "tone.no_pressure": 66,
+       "length.body": 4
+      },
+      "grader_caught": 4
      },
      "tone.missed_paraphrase": {
       "name": "a claim that a filing was not made, in other words",
-      "applied": 68,
-      "caught": 0,
-      "fired": {},
-      "grader_caught": 0
+      "applied": 66,
+      "caught": 66,
+      "fired": {
+       "tone.no_missed_claim": 66,
+       "length.body": 4
+      },
+      "grader_caught": 4
      }
     },
     "missed": {
-     "date.us_format_wrong": [
-      "aarvik/first_touch/en",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "saanvra/first_touch/en",
-      "udbhav/follow_up/en",
-      "zorvana/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "hiranyo/first_touch/en",
-      "kalindo/first_touch/en"
-     ],
-     "date.swapped": [
-      "aarvik/first_touch/en",
-      "bhuvira/first_touch/hi",
-      "chandral/first_touch/hi",
-      "garvisha/first_touch/en",
-      "hemkosh/first_touch/hi",
-      "ilavya/first_touch/hi",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "madhurak/first_touch/en",
-      "saanvra/first_touch/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "yashvik/first_touch/hi",
-      "zorvana/first_touch/en",
-      "devansha/first_touch/en",
-      "eshvika/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "indravi/first_touch/hi",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi"
-     ],
-     "section.near_miss": [
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "dhanvio/first_touch/en",
-      "ekansh/first_touch/hi",
-      "garvisha/new_need/en",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "saanvra/new_need/en",
-      "vaidhra/first_touch/en",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "barkhaya/first_touch/en",
-      "chitrakh/first_touch/en",
-      "gaurangi/first_touch/hi",
-      "indravi/first_touch/hi",
-      "jagrit/first_touch/en",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "omvara/first_touch/en"
-     ],
-     "form.truncated": [
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/new_need/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "link.extra_bare_domain": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "amount.figure_from_a_date": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
      "amount.misattributed": [
       "vaidhra/first_touch/en"
-     ],
-     "person.director_named": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "company.other_in_greeting": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "tone.penalty_paraphrase": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "tone.urgency_paraphrase": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
-     ],
-     "tone.missed_paraphrase": [
-      "aarvik/first_touch/en",
-      "aarvik/follow_up/en",
-      "aarvik/new_need/en",
-      "bhuvira/first_touch/hi",
-      "bhuvira/follow_up/hi",
-      "chandral/first_touch/hi",
-      "chandral/follow_up/hi",
-      "dhanvio/first_touch/en",
-      "dhanvio/follow_up/en",
-      "ekansh/first_touch/hi",
-      "ekansh/follow_up/hi",
-      "falgun/first_touch/en",
-      "falgun/follow_up/en",
-      "falgun/new_need/en",
-      "garvisha/first_touch/en",
-      "garvisha/follow_up/en",
-      "garvisha/new_need/en",
-      "hemkosh/first_touch/hi",
-      "hemkosh/follow_up/hi",
-      "ilavya/first_touch/hi",
-      "ilavya/new_need/hi",
-      "jivantra/first_touch/en",
-      "jivantra/follow_up/en",
-      "kaushvi/first_touch/hi",
-      "lavanyo/first_touch/en",
-      "lavanyo/follow_up/en",
-      "madhurak/first_touch/en",
-      "ojasvik/first_touch/hi",
-      "ojasvik/follow_up/hi",
-      "ojasvik/new_need/hi",
-      "prakriva/first_touch/hi",
-      "prakriva/follow_up/hi",
-      "quarvi/first_touch/en",
-      "rudhvik/first_touch/hi",
-      "rudhvik/follow_up/hi",
-      "saanvra/first_touch/en",
-      "saanvra/new_need/en",
-      "tanmayo/first_touch/hi",
-      "udbhav/first_touch/en",
-      "udbhav/follow_up/en",
-      "vaidhra/first_touch/en",
-      "yashvik/first_touch/hi",
-      "yashvik/follow_up/hi",
-      "yashvik/new_need/hi",
-      "zorvana/first_touch/en",
-      "amritsa/first_touch/hi",
-      "amritsa/new_need/hi",
-      "barkhaya/first_touch/en",
-      "barkhaya/follow_up/en",
-      "chitrakh/first_touch/en",
-      "devansha/first_touch/en",
-      "devansha/follow_up/en",
-      "eshvika/first_touch/hi",
-      "eshvika/follow_up/hi",
-      "gaurangi/first_touch/hi",
-      "hiranyo/first_touch/en",
-      "hiranyo/follow_up/en",
-      "indravi/first_touch/hi",
-      "indravi/follow_up/hi",
-      "jagrit/first_touch/en",
-      "jagrit/new_need/en",
-      "kalindo/first_touch/en",
-      "lokvesh/first_touch/hi",
-      "lokvesh/follow_up/hi",
-      "lokvesh/new_need/hi",
-      "mrinavi/first_touch/en",
-      "mrinavi/follow_up/en",
-      "omvara/first_touch/en"
      ]
     }
    },
-   "seconds": 1.3
+   "seconds": 2
   },
   "database": {
    "ok": true,
-   "seconds": 2.8
+   "seconds": 2.5
   },
   "gate": {
    "cases": 39,
-   "agree": 36,
+   "agree": 39,
    "errors": 0,
    "results": [
     {
@@ -2508,15 +1717,15 @@
       "stop",
       "no_message"
      ],
-     "outcome": "send",
+     "outcome": "stop",
      "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
+      "decision": "stop",
+      "code": "not_up",
+      "reason": "the company's CIN was issued in DL, not Uttar Pradesh"
      },
      "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
      "recipient_basis": "published_under_law",
-     "agree": false
+     "agree": true
     },
     {
      "id": "stop.already_contacted",
@@ -2557,15 +1766,15 @@
      "expect": [
       "stop"
      ],
-     "outcome": "send",
+     "outcome": "stop",
      "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
+      "decision": "stop",
+      "code": "no_consent",
+      "reason": "the address is marked as consented, but the consent ledger holds no current consent for it"
      },
      "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
      "recipient_basis": "consent",
-     "agree": false
+     "agree": true
     },
     {
      "id": "stop.website_address_switch_off",
@@ -2585,15 +1794,15 @@
       "stop",
       "wait"
      ],
-     "outcome": "send",
+     "outcome": "stop",
      "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
+      "decision": "stop",
+      "code": "website_email_off",
+      "reason": "addresses from companies' own websites are switched off (recipient.use_website_email)"
      },
      "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
      "recipient_basis": "published_by_company",
-     "agree": false
+     "agree": true
     },
     {
      "id": "stop.disposable_domain",
@@ -2824,59 +2033,8 @@
      "agree": true
     }
    ],
-   "disagreements": [
-    {
-     "id": "stop.cin_says_not_up",
-     "why": "the record says state UP but its CIN was issued in Delhi (DL): a data error upstream",
-     "expect": [
-      "stop",
-      "no_message"
-     ],
-     "outcome": "send",
-     "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
-     },
-     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
-     "recipient_basis": "published_under_law",
-     "agree": false
-    },
-    {
-     "id": "stop.consent_label_without_consent",
-     "why": "the recipient is labelled 'consent' but the consent ledger has nothing for it",
-     "expect": [
-      "stop"
-     ],
-     "outcome": "send",
-     "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
-     },
-     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
-     "recipient_basis": "consent",
-     "agree": false
-    },
-    {
-     "id": "stop.website_address_switch_turned_off",
-     "why": "drafted while the switch was on; the switch is turned off (the lawyer said no) before it is sent",
-     "expect": [
-      "stop",
-      "wait"
-     ],
-     "outcome": "send",
-     "gate": {
-      "decision": "send",
-      "code": "ok",
-      "reason": "first email"
-     },
-     "detail": "plan: shortlisted 1, first_touch_queued 1; draft: awaiting_approval",
-     "recipient_basis": "published_by_company",
-     "agree": false
-    }
-   ],
-   "seconds": 4
+   "disagreements": [],
+   "seconds": 4.2
   },
   "privacy": {
    "paths": [
@@ -2911,9 +2069,7 @@
      "by_service": {
       "llm:reply_classify": {
        "calls": 1,
-       "leaked": [
-        "director name"
-       ]
+       "leaked": []
       }
      }
     },
@@ -2931,11 +2087,7 @@
      "by_service": {
       "llm:reply_classify": {
        "calls": 1,
-       "leaked": [
-        "mobile",
-        "number written \"+91 9876 543 210\"",
-        "number written \"0522 4012345\""
-       ]
+       "leaked": []
       }
      }
     },
@@ -2958,24 +2110,7 @@
      }
     }
    ],
-   "leaks": [
-    {
-     "step": "reply_classify: a signature without a \"-- \" line",
-     "service": "llm:reply_classify",
-     "leaked": [
-      "director name"
-     ]
-    },
-    {
-     "step": "reply_classify: numbers written other ways",
-     "service": "llm:reply_classify",
-     "leaked": [
-      "mobile",
-      "number written \"+91 9876 543 210\"",
-      "number written \"0522 4012345\""
-     ]
-    }
-   ],
+   "leaks": [],
    "notes": {
     "match_check": null,
     "reply_classify": null
@@ -3037,8 +2172,8 @@
    "seconds": 0.5
   },
   "docs": {
-   "items": 234,
-   "problems": 4,
+   "items": 243,
+   "problems": 0,
    "commands": {
     "checked": 57,
     "missing": [],
@@ -3046,41 +2181,19 @@
     "python_commands": 12
    },
    "openapi": {
-    "paths": 17,
-    "engine_paths": 14,
+    "paths": 21,
+    "engine_paths": 18,
     "problems": [],
-    "undocumented_api_routes": [
-     "/api/review",
-     "/api/alerts",
-     "/api/companies",
-     "/api/approvals"
-    ]
+    "undocumented_api_routes": []
    },
    "env": {
-    "documented": 77,
+    "documented": 82,
     "read_in_code": 69,
-    "not_in_env_example": [
-     {
-      "name": "CAPS_FILE",
-      "where": "services/src/config.js:32"
-     },
-     {
-      "name": "DKIM_SELECTOR",
-      "where": "services/src/ops/preflight.js:172"
-     },
-     {
-      "name": "SARVAM_API_BASE",
-      "where": "services/src/voice/sarvam.js:90"
-     },
-     {
-      "name": "<MAILBOX_n>_SMTP_USER",
-      "where": "services/src/outreach/transport.js:30"
-     }
-    ],
+    "not_in_env_example": [],
     "never_read": [
      {
       "name": "EXPORT_S3_URI",
-      "where": ".env.example:180",
+      "where": ".env.example:187",
       "read_by_ops_only": true
      }
     ]
@@ -3092,26 +2205,26 @@
    },
    "tests": {
     "real": {
-     "node": 257,
-     "python": 272,
-     "total": 529,
+     "node": 260,
+     "python": 274,
+     "total": 534,
      "node_how": "static count of test( and it( calls in services/test/*.test.js",
      "python_how": "pytest --collect-only (collects, runs nothing)"
     },
     "quoted": [
      {
       "where": "README.md:13",
-      "node": 258,
-      "python": 272,
-      "total": 530
+      "node": 261,
+      "python": 274,
+      "total": 535
      },
      {
       "where": "docs/HANDOVER.md:155",
-      "node": 258
+      "node": 261
      },
      {
       "where": "docs/HANDOVER.md:156",
-      "python": 272
+      "python": 274
      }
     ],
     "mismatches": []
@@ -3701,9 +2814,9 @@
       "id": "near.one_letter_names",
       "category": "different companies, near-identical names",
       "label": "different",
-      "outcome": "review",
-      "why": "probability below the automatic threshold",
-      "name_agreement": "typo"
+      "outcome": "not linked",
+      "why": "best candidate too weak or contradicted",
+      "name_agreement": "different"
      },
      {
       "id": "plural.solar_solars",
@@ -3836,14 +2949,12 @@
     ],
     "name_level": {
      "pairs": 40,
-     "predicted_same": 26,
+     "predicted_same": 25,
      "correct": 25,
-     "wrong": 1,
-     "precision": 0.9615,
+     "wrong": 0,
+     "precision": 1,
      "recall": 0.8333,
-     "wrong_list": [
-      "near.one_letter_names"
-     ],
+     "wrong_list": [],
      "missed_list": [
       "translit.shri_shree",
       "translit.laxmi_lakshmi",
@@ -3856,37 +2967,11 @@
    },
    "websites": {
     "cases": 30,
-    "correct": 27,
-    "directories_social_rejected": "22/23",
-    "own_sites_accepted": "5/7",
-    "wrong_accepts": [
-     {
-      "id": "builder.weebly",
-      "url": "https://tarovikagrofoods.weebly.com/",
-      "expect": "reject",
-      "got": "accept",
-      "ok": false,
-      "why": "a free site-builder subdomain, the same kind as wixsite.com, which the step does refuse"
-     }
-    ],
-    "wrong_rejects": [
-     {
-      "id": "own.two_letter_initials",
-      "url": "https://vnagro.example/",
-      "expect": "accept",
-      "got": "reject",
-      "ok": false,
-      "why": "a name of initials has no word of three letters, but this is plainly its site"
-     },
-     {
-      "id": "own.honorific_dropped",
-      "url": "https://ganeshagro.example/",
-      "expect": "accept",
-      "got": "reject",
-      "ok": false,
-      "why": "the domain drops \"Shri\", as companies often do"
-     }
-    ],
+    "correct": 30,
+    "directories_social_rejected": "23/23",
+    "own_sites_accepted": "7/7",
+    "wrong_accepts": [],
+    "wrong_rejects": [],
     "rows": [
      {
       "id": "own.exact_domain",
@@ -3924,16 +3009,16 @@
       "id": "own.two_letter_initials",
       "url": "https://vnagro.example/",
       "expect": "accept",
-      "got": "reject",
-      "ok": false,
+      "got": "accept",
+      "ok": true,
       "why": "a name of initials has no word of three letters, but this is plainly its site"
      },
      {
       "id": "own.honorific_dropped",
       "url": "https://ganeshagro.example/",
       "expect": "accept",
-      "got": "reject",
-      "ok": false,
+      "got": "accept",
+      "ok": true,
       "why": "the domain drops \"Shri\", as companies often do"
      },
      {
@@ -4084,8 +3169,8 @@
       "id": "builder.weebly",
       "url": "https://tarovikagrofoods.weebly.com/",
       "expect": "reject",
-      "got": "accept",
-      "ok": false,
+      "got": "reject",
+      "ok": true,
       "why": "a free site-builder subdomain, the same kind as wixsite.com, which the step does refuse"
      },
      {
@@ -4139,7 +3224,7 @@
     ],
     "leaked": []
    },
-   "seconds": 2.2,
+   "seconds": 2.3,
    "network_blocked": []
   }
  }

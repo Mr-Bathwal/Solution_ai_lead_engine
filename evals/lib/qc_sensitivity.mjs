@@ -109,7 +109,8 @@ export async function runQcSensitivity(cfg, clean) {
       // a new failure, or a check that already failed (the signature link) now failing for more
       const before = new Set(c.checks.filter((x) => !x.ok).map((x) => `${x.id}|${x.detail}`));
       if (gradeDraft({ ...c, draft: broken }, o).some((x) => !x.ok && !before.has(`${x.id}|${x.detail}`))) row.grader_caught += 1;
-      const qc = qualityCheck(broken, c.pack, { kind: c.kind, language: c.language, cfg: o, org: o.org });
+      // the engine hands the quality check the people it knows at the company (sequence.js, messages.js): so does this
+      const qc = qualityCheck(broken, c.pack, { kind: c.kind, language: c.language, cfg: o, org: o.org, names: c.company.directors ?? [] });
       if (!qc.passed) {
         row.caught += 1;
         for (const k of qc.checks.filter((x) => !x.ok)) row.fired[k.id] = (row.fired[k.id] ?? 0) + 1;

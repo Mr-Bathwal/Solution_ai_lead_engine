@@ -67,8 +67,9 @@ function waitUntil(code, now, caps, sendDays, budget) {
 }
 
 export class ComplianceGate {
-  constructor({ cfg, caps, budget, suppression, mailboxes, clock = () => new Date() }) {
+  constructor({ cfg, caps, budget, suppression, mailboxes, ledger = null, clock = () => new Date() }) {
     this.cfg = cfg;
+    this.ledger = ledger;
     this.caps = caps;
     this.budget = budget;
     this.suppression = suppression;
@@ -94,9 +95,22 @@ export class ComplianceGate {
     if (!message.evidence.pack.rules?.confirmed || lead?.needs?.rules_confirmed !== true) {
       return wait('rules_unconfirmed', "the deadline and scheme rules are not yet confirmed by a CA", waitUntil('rules', now, this.caps, sendDays, this.budget));
     }
+    // UP only: a company's CIN carries the state it was registered in, whatever its record says
+    const cin = /^[LU]\d{5}([A-Z]{2})\d{4}[A-Z]{3}\d{6}$/.exec(String(message.company_id ?? ''));
+    if (cin && cin[1] !== 'UP') return stop('not_up', `the company's CIN was issued in ${cin[1]}, not Uttar Pradesh`);
     const r = message.recipient;
     if (!r?.address) return stop('no_recipient', 'there is no address to send to');
     if (!this.cfg.recipient.legal_bases.includes(r.legal_basis)) return stop('no_legal_basis', `the address's legal basis (${r.legal_basis ?? 'none'}) does not allow this message`);
+    // the switch is read at send time too: turning it off stops what was drafted while it was on
+    if (r.legal_basis === 'published_by_company' && !this.cfg.recipient.use_website_email) {
+      return stop('website_email_off', "addresses from companies' own websites are switched off (recipient.use_website_email)");
+    }
+    // "consent" is only as good as the ledger says it is now
+    if (r.legal_basis === 'consent') {
+      const granted = this.ledger && (await Promise.all(['deadline_reminders', 'scheme_alerts']
+        .map((purpose) => this.ledger.statusForAddress({ channel: 'email', address: r.address, purpose })))).some((x) => x.granted);
+      if (!granted) return stop('no_consent', 'the address is marked as consented, but the consent ledger holds no current consent for it');
+    }
     const mb = this.mailboxes[message.mailbox];
     if (!mb?.address) return wait('mailbox_not_configured', `${message.mailbox} has no address configured`, waitUntil('config', now, this.caps, sendDays, this.budget));
     if (!sendDays.includes(istParts(now).weekday)) return wait('window', `${istParts(now).weekday} is not a sending day`, nextWindowOpen(now, this.caps, sendDays));

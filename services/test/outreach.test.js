@@ -152,7 +152,7 @@ describe('templates and the quality check', () => {
     const { pack } = buildEvidencePack(company(), leadDoc(), o.cfg, { asOf: '2026-11-20' });
     const good = templateDraft(pack, { kind: 'first_touch', language: 'en', sender: { name: 'Gourav B' }, org: o.org });
     const failing = (draft, kind = 'first_touch', language = 'en') => qualityCheck(draft, pack, ctx(o, kind, language)).checks.filter((c) => !c.ok).map((c) => c.id);
-    assert.deepEqual(failing({ ...good, body: good.body.replace('13 November 2026', '14 November 2026') }), ['facts.dates']);
+    assert.deepEqual(failing({ ...good, body: good.body.replace('13 November 2026', '14 November 2026') }), ['facts.dates', 'facts.dates_match_deadlines']);
     assert.ok(failing({ ...good, body: `${good.body}\nThe fee is ₹5,000.` }).includes('facts.numbers'));
     assert.ok(failing({ ...good, body: good.body.replace('INC-20A', 'MGT-14') }).includes('facts.forms'));
     assert.ok(failing({ ...good, body: good.body.replace('{{unsubscribe_url}}', '') }).includes('links.unsubscribe_once'));
@@ -165,6 +165,28 @@ describe('templates and the quality check', () => {
     assert.ok(failing({ ...good, body: `${good.body}\nनमस्ते` }).includes('language'));
     const anonymous = { subject: good.subject.replaceAll('Vezras Technologies Private Limited', 'Your company'), body: good.body.replaceAll('Vezras Technologies Private Limited', 'the company') };
     assert.ok(failing(anonymous).includes('facts.company_named'));
+  });
+
+  test('catches wrong facts made of real pieces, links without http, other names, and pressure in other words', () => {
+    const { o } = setup();
+    const { pack } = buildEvidencePack(company(), leadDoc(), o.cfg, { asOf: '2026-11-20' });
+    const good = templateDraft(pack, { kind: 'first_touch', language: 'en', sender: { name: 'Gourav B' }, org: o.org });
+    const failing = (draft, extra = {}) => qualityCheck(draft, pack, { ...ctx(o, 'first_touch', 'en'), ...extra }).checks.filter((c) => !c.ok).map((c) => c.id);
+    assert.deepEqual(failing(good, { names: ['Rahul Verma'] }), [], 'the template passes, people known or not');
+    const dates = (good.body.match(/\d{1,2} [A-Z][a-z]+ \d{4}/g) ?? []).filter((d, i, a) => a.indexOf(d) === i);
+    const [a, b] = dates.slice(-2);
+    const swapped = good.body.replaceAll(a, '\u0000').replaceAll(b, a).replaceAll('\u0000', b);
+    assert.ok(failing({ ...good, body: swapped }).includes('facts.dates_match_deadlines'), 'two real dates, each given to the other deadline');
+    assert.ok(failing({ ...good, body: good.body.replace('INC-20A', 'INC-20') }).includes('facts.forms'), 'INC-20 is not INC-20A');
+    assert.ok(failing({ ...good, body: good.body.replace('s.10A', 's.10B') }).includes('facts.sections'), 's.10B is not s.10A');
+    assert.ok(failing({ ...good, body: `${good.body}\nIt also brings a grant of ₹13 lakh.` }).includes('facts.amounts'), 'a figure from a date is not an amount');
+    assert.ok(failing({ ...good, body: `${good.body}\nOur plans are at solutionai-offers.example/pricing` }).includes('links.no_others'));
+    assert.ok(failing({ ...good, body: good.body.replace(/^Hello .* team,/m, 'Hello Gomti Foods Private Limited team,') }).includes('facts.no_other_company'));
+    assert.ok(failing({ ...good, body: `${good.body}\nWe have also written to your director, Rahul Verma.` }, { names: ['Rahul Verma'] }).includes('privacy.no_person_named'));
+    assert.ok(failing({ ...good, body: `${good.body}\nPlease file on time to avoid penalties.` }).includes('tone.no_pressure'));
+    assert.ok(failing({ ...good, body: `${good.body}\nPlease do not delay; this needs your attention this week.` }).includes('tone.no_pressure'));
+    assert.ok(failing({ ...good, body: `${good.body}\nOur records show this filing was not made on time.` }).includes('tone.no_missed_claim'));
+    assert.ok(failing({ ...good, body: `${good.body}\nCall Meera on +91 9876 543 210 or 0522 4012345.` }).includes('privacy.no_contacts'));
   });
 });
 
@@ -258,6 +280,23 @@ describe('the sequence: draft, approval, gate, send', () => {
     assert.equal(await db.collection('page_tokens').countDocuments({ company_id: CID }), 2);
     assert.deepEqual(await o.handlers[JOB_SEND](job), { skipped: 'message is sent' }, 'a second run sends nothing');
     assert.equal(readdirSync(outbox).length, 1);
+  });
+
+  test('the gate also stops a CIN from another state, a website address once the switch is off, and a "consent" the ledger does not hold', async () => {
+    const { o } = setup();
+    const msg = await draftAndApprove(o);
+    await db.collection('leads').updateOne({ company_id: CID }, { $set: { 'needs.rules_confirmed': true } });
+    await db.collection('messages').updateOne({ _id: msg._id }, { $set: { 'evidence.pack.rules.confirmed': true } });
+    const lead = await db.collection('leads').findOne({ company_id: CID });
+    const base = await db.collection('messages').findOne({ _id: msg._id });
+    const check = async (change) => (await o.gate.check({ message: { ...base, ...change }, lead })).code;
+    assert.equal(await check({ company_id: 'U62099DL2026PTC300102' }), 'not_up', 'the record may say UP; the CIN says Delhi');
+    assert.equal(await check({ recipient: { ...base.recipient, legal_basis: 'published_by_company', source: 'company_website' } }), 'website_email_off');
+    const consented = { ...base.recipient, address: 'asha@vezras.in', legal_basis: 'consent' };
+    assert.equal(await check({ recipient: consented }), 'no_consent');
+    await o.ledger.grant({ subject: { type: 'person', id: 'p1' }, channel: 'email', purpose: 'deadline_reminders', address: 'asha@vezras.in',
+      wording: 'Email me reminders.', wordingVersion: 'claim-v2', capturedVia: 'company_page_claim', proof: {} });
+    assert.notEqual(await check({ recipient: consented }), 'no_consent', 'with a current consent it goes on to the other checks');
   });
 
   test('the gate waits for the CA, the send window and the warm-up, and stops for suppression or a changed text', async () => {

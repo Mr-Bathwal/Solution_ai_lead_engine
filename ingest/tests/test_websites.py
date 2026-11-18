@@ -123,3 +123,22 @@ def test_no_guessing_robots_and_caps_are_respected_and_no_provider_means_contact
     s = Search({})
     stats = Websites(db, None, {"monthly": {"web_searches": 2}}, fetcher=Fetcher({}), search=s, log=lambda *_: None, clock=lambda: NOW).run(MONTH)
     assert len(s.queries) == 1 and stats["search_stopped_cap"] == 1
+
+
+def test_initials_and_honorifics_fit_but_site_builders_never_count():
+    # a name that starts with initials, or with an honorific the domain leaves out
+    assert domain_fits("vnagro.in", "VN AGRO PRIVATE LIMITED")
+    assert domain_fits("skfoods.com", "S.K. FOODS PRIVATE LIMITED")
+    assert domain_fits("ramagro.in", "SHRI RAM AGRO PRIVATE LIMITED")
+    assert not domain_fits("vnx.in", "VN AGRO PRIVATE LIMITED"), "initials alone are not enough"
+    assert not domain_fits("ramagro.in", "SITA RAM AGRO PRIVATE LIMITED"), "only an honorific may be left out"
+    # a subdomain of a free site builder belongs to the builder, not the company
+    from leadengine.web import company_domain
+    for url in ("https://vezras.weebly.com/", "https://vezras.myshopify.com", "https://vezras.netlify.app"):
+        assert company_domain(url) is None, url
+
+
+def test_a_changed_last_vowel_is_another_name_not_a_slip():
+    from leadengine.names import typo_of
+    assert not typo_of("hiranyo", "hiranya")
+    assert typo_of("motors", "moors") and typo_of("yagnawealthh", "yagnawealth")

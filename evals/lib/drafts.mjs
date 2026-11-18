@@ -161,7 +161,9 @@ export function gradeDraft(d, cfg) {
   const name = pack.company.name;
   const nameIsRegistered = name.toLowerCase() === d.company.name.toLowerCase();
   const greeting = body.split('\n')[0];
-  add('company.name_right', nameIsRegistered && subject.includes(name) && greeting.includes(name),
+  // a subject may carry the name without its legal form when the full one would make it too long
+  const shortForm = name.replace(/\s+(private limited|pvt\.?\s?ltd\.?|limited|llp)$/i, '').trim();
+  add('company.name_right', nameIsRegistered && (subject.includes(name) || (name.length > 50 && subject.includes(shortForm))) && greeting.includes(name),
     !nameIsRegistered ? `the pack names "${name}", the register "${d.company.name}"` : `the name is missing from the ${subject.includes(name) ? 'greeting' : 'subject'}`);
   const lower = text.toLowerCase();
   const wrong = d.others.filter((n) => lower.includes(n.toLowerCase()) && !name.toLowerCase().includes(n.toLowerCase()));

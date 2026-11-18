@@ -97,12 +97,37 @@ def distinctive(name: str) -> list[str]:
     return [w for w in words if w not in GENERIC and len(w) >= 3]
 
 
+HONORIFICS = {"shri", "shree", "sri", "sree", "ms", "m"}
+
+
+def initials(name: str) -> str:
+    """The initials a name starts with: "VN AGRO" or "V N AGRO" or "S.K. FOODS" -> "vn" or "sk"; "" if none."""
+    out = ""
+    for tok in re.findall(r"[a-z0-9.]+", (name or "").lower()):
+        letters = tok.replace(".", "")
+        if 0 < len(letters) <= 2 and (len(letters) == 1 or "." in tok or len(out) == 0) and letters.isalpha():
+            out += letters
+        else:
+            break
+    return out if len(out) >= 2 else ""
+
+
 def domain_fits(domain: str, name: str) -> bool:
     """The domain carries the company's distinctive name: gomtiagro.in or gomti-foods.com for Gomti Agro Foods.
     With one distinctive word it must be in the domain; with more, the first and one other (or a first of five
-    letters or more, which is rarely shared by chance)."""
+    letters or more, which is rarely shared by chance). A name that starts with initials ("VN Agro") fits a
+    domain that starts with them and carries another word of the name (vnagro.in); a name that starts with an
+    honorific ("Shri Ram Agro") also fits a domain that leaves it out (ramagro.in)."""
     label = re.sub(r"[^a-z0-9]", "", domain.split(".")[0])      # company_domain() has already dropped "www."
+    ini = initials(short_name(name))
+    if ini and label.startswith(ini):
+        rest = label[len(ini):]
+        others = [w for w in re.findall(r"[a-z0-9]+", short_name(name).lower()) if len(w) >= 3]
+        if rest and any(w in rest for w in others):
+            return True
     words = distinctive(name)
+    if words and words[0] in HONORIFICS and words[0] not in label:
+        words = words[1:]
     if not words or words[0] not in label:
         return False
     return len(words) == 1 or any(w in label for w in words[1:]) or len(words[0]) >= 5

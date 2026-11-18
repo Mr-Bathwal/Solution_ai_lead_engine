@@ -171,6 +171,22 @@ describe('reading an email', () => {
     assert.ok(disagree.confidence <= 0.7);
   });
 
+  test("what reaches the model: no signature, however it is written, no number in any format, no name the engine knows", async () => {
+    const calls = [];
+    const llm = { configured: true, chat: async (req) => { calls.push(req); return { content: JSON.stringify({ label: 'question', confidence: 0.8, reason: 'asks' }), model: 'small-1' }; } };
+    const reply = 'Hmm, Rahul here. Landline 0522 4012345 or Ph: 401 2345, mobile +91 9876 543 210.\n\nRegards,\nRahul Verma\nDirector, Vezras\n98765-43210';
+    await classifyReply({ subject: 'Re: Rahul Verma, your dates', text: reply }, { llm, names: ['Rahul Verma', 'Asha Gupta'] });
+    const sent = calls[0].messages[1].content;
+    for (const leak of ['Rahul', 'Verma', '0522', '4012345', '401 2345', '9876', '543 210', 'Director']) assert.ok(!sent.includes(leak), `${leak} in ${sent}`);
+    assert.match(sent, /\[name\] here\. Landline \[phone\] or Ph: \[phone\], mobile \[phone\]\./);
+    const { scrub, withoutSignOff } = await import('../src/inbound/classify.js');
+    assert.equal(scrub('Due by 15/12/2026, fee Rs 2,000, INC-20A'), 'Due by 15/12/2026, fee Rs 2,000, INC-20A', 'dates, amounts and form names stay');
+    assert.equal(withoutSignOff('Thanks'), 'Thanks', 'a reply that is only a thank-you is kept');
+    assert.equal(withoutSignOff('Not now.\nThanks,\nAsha'), 'Not now.');
+    const long = `Thanks,\n${'We would like to know more about the annual filing and your charges for it. '.repeat(3)}`;
+    assert.equal(withoutSignOff(`Hello.\n${long}`), `Hello.\n${long}`, 'a "Thanks," that starts a long paragraph is not a sign-off');
+  });
+
   test('the quality-check test set: every fault caught, no clean draft refused', () => {
     const r = evalQc(setup().cfg, { companies: 10 });
     assert.equal(r.summary.false_positives, 0, JSON.stringify(r.summary.false_positive_checks));

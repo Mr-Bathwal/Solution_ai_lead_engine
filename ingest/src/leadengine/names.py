@@ -58,6 +58,9 @@ def typo_of(a: str, b: str) -> bool:
     which is how brands are made) do not."""
     if a == b or min(len(a), len(b)) < 5 or a[0] != b[0] or not one_edit(a, b):
         return False
+    # "Hiranya" and "Hiranyo": brands are made by changing the last vowel, so that is not a slip
+    if len(a) == len(b) and a[:-1] == b[:-1] and a[-1] in "aeiouy" and b[-1] in "aeiouy":
+        return False
     short, long_ = (a, b) if len(a) < len(b) else (b, a)
     if len(short) != len(long_) and long_.startswith(short):          # a letter added at the end
         extra = long_[-1]

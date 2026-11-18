@@ -46,7 +46,7 @@ export function buildOutreach(cfg, db, { clock = () => new Date(), log = console
   const deps = {
     db, queue, cfg: o, caps: cfg.caps, org: o.org, mailboxes, suppression, ledger, budget, clock, log,
     drafter: new Drafter({ llm, cfg: o, org: o.org }),
-    gate: new ComplianceGate({ cfg: o, caps: cfg.caps, budget, suppression, mailboxes, clock }),
+    gate: new ComplianceGate({ cfg: o, caps: cfg.caps, budget, suppression, mailboxes, ledger, clock }),
     transport: transport ?? transportFromEnv(env, { root: ROOT }),
     tokens: new PageTokens(db, { days: o.page.token_days, clock }),
     platform: new PlatformClient({ onboardingUrl: env.PLATFORM_ONBOARDING_URL, notifyUrl: env.PLATFORM_NOTIFY_URL,

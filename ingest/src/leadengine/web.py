@@ -10,6 +10,11 @@ SHARED_HOSTS = (
     "blogspot.com", "wordpress.com", "wixsite.com", "medium.com", "github.com", "github.io", "notion.site",
     "startinup.up.gov.in", "startupmission.up.gov.in", "startupindia.gov.in", "indiamart.com", "justdial.com",
     "play.google.com", "apps.apple.com", "bit.ly", "tinyurl.com", "carrd.co", "godaddysites.com", "business.site",
+    # free site builders and hosting: a subdomain there belongs to the builder, not the company
+    "weebly.com", "wix.com", "square.site", "webnode.com", "webnode.in", "jimdosite.com", "site123.me", "strikingly.com",
+    "mystrikingly.com", "yolasite.com", "webs.com", "tumblr.com", "webflow.io", "framer.website", "canva.site",
+    "my.canva.site", "zohosites.in", "zohosites.com", "myshopify.com", "mydukaan.io", "myinstamojo.com", "ueniweb.com",
+    "vercel.app", "netlify.app", "pages.dev", "herokuapp.com", "glitch.me", "about.me", "wa.link",
 )
 DOMAIN_RX = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$")
 
