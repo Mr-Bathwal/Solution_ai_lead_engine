@@ -109,6 +109,16 @@ export function qualityCheck(draft, pack, { kind, language, cfg, org = {}, names
     for (const d of sentence.match(DATE_RX) ?? []) if (!own.has(d.replace(/\s+/g, ' ').trim())) misdated.push(`${named[0].title}: ${d}`);
   }
   add('facts.dates_match_deadlines', !misdated.length, `a date given for the wrong deadline: ${misdated.join('; ')}`);
+  // likewise an amount beside a scheme is that scheme's own (a real amount moved to another scheme is wrong)
+  const misplaced = [];
+  for (const sentence of body.split(/\n|(?<=[.;।])\s+/)) {
+    const lower = sentence.toLowerCase();
+    const named = (pack.schemes ?? []).filter((x) => x.name && lower.includes(String(x.name).toLowerCase()));
+    if (named.length !== 1) continue;
+    const own = new Set((JSON.stringify(named[0]).match(AMOUNT_RX) ?? []).map(amountKey));
+    for (const a of sentence.match(AMOUNT_RX) ?? []) if (!own.has(amountKey(a))) misplaced.push(`${named[0].name}: ${a}`);
+  }
+  add('facts.amounts_match_schemes', !misplaced.length, `an amount given for the wrong scheme: ${misplaced.join('; ')}`);
   const ids = rest.match(ID_RX) ?? [];
   const strayIds = ids.filter((id) => id !== facts.companyId && !facts.forms.has(id) && !facts.text.includes(id));
   add('facts.identifiers', !strayIds.length, `identifiers that are not this company's: ${strayIds.join(', ')}`);

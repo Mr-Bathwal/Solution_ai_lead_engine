@@ -1,8 +1,8 @@
 {
  "meta": {
-  "at": "2026-11-18T20:08:03.204Z",
-  "ist": "2026-11-19 01:38",
-  "seconds": 22.6,
+  "at": "2026-11-18T20:14:43.398Z",
+  "ist": "2026-11-19 01:44",
+  "seconds": 16.5,
   "harnessErrors": [],
   "blocked": []
  },
@@ -13,7 +13,7 @@
   ],
   [
    "2. QC sensitivity",
-   "eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1353/1354 (99.9%); 0 of 24 mutation types never caught"
+   "eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1354/1354 (100.0%); 0 of 24 mutation types never caught"
   ],
   [
    "3. Compliance gate",
@@ -33,19 +33,6 @@
   ]
  ],
  "findings": [
-  {
-   "severity": 2,
-   "title": "The quality check misses wrong facts whose digits appear elsewhere in the evidence pack",
-   "where": [
-    "services/src/outreach/qc.js:115",
-    "services/src/outreach/qc.js:91",
-    "config/outreach.json:10"
-   ],
-   "failing": [
-    "amount.misattributed (a scheme amount from the pack given to the wrong scheme): caught 1/2"
-   ],
-   "why": "facts.numbers checks each number in a draft against the set of every digit string in the pack, without context, and facts.forms accepts any form that is a substring of the pack's text. So \"₹13 lakh\" passes when a date in the pack is the 13th, two deadlines' dates can be swapped, \"INC-20A\" can become \"INC-20\" and \"s.10A\" \"s.10B\". The templates make none of these mistakes (Eval 1: no factual error in any draft), but the AI drafter could, and once approval.mode becomes \"sample\" (HANDOVER, design 7.5) 80% of drafts that pass this check are sent without a person reading them."
-  },
   {
    "severity": 4,
    "title": "Every template email carries a third link (the sender's website in the signature)",
@@ -1166,7 +1153,7 @@
    "builtInMisses": [],
    "mutations": {
     "applied": 1354,
-    "caught": 1353,
+    "caught": 1354,
     "grader_caught": 1229,
     "by_mutation": {
      "date.shifted": {
@@ -1289,8 +1276,9 @@
      "amount.misattributed": {
       "name": "a scheme amount from the pack given to the wrong scheme",
       "applied": 2,
-      "caught": 1,
+      "caught": 2,
       "fired": {
+       "facts.amounts_match_schemes": 2,
        "length.body": 1
       },
       "grader_caught": 1
@@ -1408,17 +1396,13 @@
       "grader_caught": 4
      }
     },
-    "missed": {
-     "amount.misattributed": [
-      "vaidhra/first_touch/en"
-     ]
-    }
+    "missed": {}
    },
    "seconds": 2.1
   },
   "database": {
    "ok": true,
-   "seconds": 8.3
+   "seconds": 3.2
   },
   "gate": {
    "cases": 39,
@@ -2030,7 +2014,7 @@
     }
    ],
    "disagreements": [],
-   "seconds": 5.5
+   "seconds": 4.2
   },
   "privacy": {
    "paths": [
@@ -2165,7 +2149,7 @@
    "cfg_used": {
     "llm": true
    },
-   "seconds": 0.6
+   "seconds": 0.5
   },
   "docs": {
    "items": 243,
@@ -2201,22 +2185,22 @@
    },
    "tests": {
     "real": {
-     "node": 260,
+     "node": 261,
      "python": 275,
-     "total": 535,
+     "total": 536,
      "node_how": "static count of test( and it( calls in services/test/*.test.js",
      "python_how": "pytest --collect-only (collects, runs nothing)"
     },
     "quoted": [
      {
       "where": "README.md:13",
-      "node": 261,
+      "node": 262,
       "python": 275,
-      "total": 536
+      "total": 537
      },
      {
       "where": "docs/HANDOVER.md:155",
-      "node": 261
+      "node": 262
      },
      {
       "where": "docs/HANDOVER.md:156",
@@ -2225,7 +2209,7 @@
     ],
     "mismatches": []
    },
-   "seconds": 2.5
+   "seconds": 2.8
   },
   "matching": {
    "matching": {
@@ -2396,7 +2380,7 @@
         "name_agreement": "same"
        }
       ],
-      "seconds": 1.8,
+      "seconds": 1.7,
       "pairs_scored": 20
      },
      "exact_only": {
@@ -3220,7 +3204,7 @@
     ],
     "leaked": []
    },
-   "seconds": 3,
+   "seconds": 2.8,
    "network_blocked": []
   }
  }

@@ -1,13 +1,13 @@
 # Lead engine evals: report
 
-Run 2026-11-18T20:08:03.204Z (IST 2026-11-19 01:38), 22.6 s, by `node evals/run.mjs`. What each eval measures and how to read it: `evals/README.md`. Machine-readable: `evals/report.json`.
+Run 2026-11-18T20:14:43.398Z (IST 2026-11-19 01:44), 16.5 s, by `node evals/run.mjs`. What each eval measures and how to read it: `evals/README.md`. Machine-readable: `evals/report.json`.
 
 ## Scorecard
 
 | Eval | Headline |
 |---|---|
 | 1. Draft factuality and lawfulness | 71 drafts from 37 companies: facts 100% from the pack; every check passed by 0/71 (71/71 if the signature's website link is allowed) |
-| 2. QC sensitivity | eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1353/1354 (99.9%); 0 of 24 mutation types never caught |
+| 2. QC sensitivity | eval:qc 7080/7080 (100.0%), 0 false positives; this suite's mutations 1354/1354 (100.0%); 0 of 24 mutation types never caught |
 | 3. Compliance gate | 39/39 cases agree (100.0%); 0 disagreement(s), 0 harness error(s) |
 | 4. Privacy egress | 13 outside calls over 6 services; no canary left the engine |
 | 5. Matching and websites | 48 pairs: precision 100.0%, recall 47.1% (linked or sent to review 33/34); websites 30/30, directories and social networks rejected 23/23; web search egress clean |
@@ -17,19 +17,13 @@ Run 2026-11-18T20:08:03.204Z (IST 2026-11-19 01:38), 22.6 s, by `node evals/run.
 
 Most severe first. Each was observed in this run; the file:line points at the code responsible, as it reads today.
 
-### 1. [Medium-high] The quality check misses wrong facts whose digits appear elsewhere in the evidence pack
-
-- **Where:** services/src/outreach/qc.js:115, services/src/outreach/qc.js:91, config/outreach.json:10
-- **Failing cases:** amount.misattributed (a scheme amount from the pack given to the wrong scheme): caught 1/2
-- **Why it matters:** facts.numbers checks each number in a draft against the set of every digit string in the pack, without context, and facts.forms accepts any form that is a substring of the pack's text. So "₹13 lakh" passes when a date in the pack is the 13th, two deadlines' dates can be swapped, "INC-20A" can become "INC-20" and "s.10A" "s.10B". The templates make none of these mistakes (Eval 1: no factual error in any draft), but the AI drafter could, and once approval.mode becomes "sample" (HANDOVER, design 7.5) 80% of drafts that pass this check are sent without a person reading them.
-
-### 2. [Low] Every template email carries a third link (the sender's website in the signature)
+### 1. [Low] Every template email carries a third link (the sender's website in the signature)
 
 - **Where:** services/src/outreach/templates.js:28, services/src/outreach/draft.js:34
 - **Failing cases:** 71/71 drafts: other links: https://solutionai.in
 - **Why it matters:** templates.js promises "one link to the company's page and one to unsubscribe", and the AI prompt says the page link is "the only link", yet the signature it must copy word for word holds https://solutionai.in. qc.js deliberately allows it. Harmless in itself, but the promise, the prompt and the code disagree; decide which is meant.
 
-### 3. [Low] Transliteration variants of the same name are not even put in front of a reviewer
+### 2. [Low] Transliteration variants of the same name are not even put in front of a reviewer
 
 - **Where:** ingest/src/leadengine/names.py:73, ingest/src/leadengine/kb/match.py:376
 - **Failing cases:** translit.devanagari: not linked (no company with a similar name in the CIN universe we hold)
@@ -70,7 +64,7 @@ The engine's own quality check failed 5 of these drafts: bhuvira/first_touch/hi 
 
 **The engine's own set** (`eval:qc`, services/src/eval/qc.js): 360 clean drafts, 0 false positives; 7080 broken drafts over 20 fault types, 7080 caught (100.0%).
 
-**This suite's mutations**, each applied to every clean draft from Eval 1 where it applies (1354 mutated drafts, 1353 caught, 99.9%). "Caught by" is which QC check failed; a catch by facts.numbers for a phone or a date is a catch for the wrong reason, and would be missed if the digits happened to be in the pack.
+**This suite's mutations**, each applied to every clean draft from Eval 1 where it applies (1354 mutated drafts, 1354 caught, 100.0%). "Caught by" is which QC check failed; a catch by facts.numbers for a phone or a date is a catch for the wrong reason, and would be missed if the digits happened to be in the pack.
 
 | Mutation | Engine QC caught | Rate | Caught by | This suite's grader caught |
 |---|---|---|---|---|
@@ -86,7 +80,7 @@ The engine's own quality check failed 5 of these drafts: bhuvira/first_touch/hi 
 | subject.shouted: the subject in capitals | 66/66 | 100.0% | subject.not_shouted 66 | 66/66 |
 | amount.invented: an invented scheme amount | 66/66 | 100.0% | facts.amounts 66, facts.numbers 66, length.body 4 | 66/66 |
 | amount.figure_from_a_date: an invented amount whose figure appears in a date of the pack | 62/62 | 100.0% | facts.amounts 62, length.body 4 | 62/62 |
-| amount.misattributed: a scheme amount from the pack given to the wrong scheme | 1/2 | 50.0% | length.body 1 | 1/2 |
+| amount.misattributed: a scheme amount from the pack given to the wrong scheme | 2/2 | 100.0% | facts.amounts_match_schemes 2, length.body 1 | 1/2 |
 | phone.standard: a personal mobile, 98765 43210 | 66/66 | 100.0% | facts.numbers 66, privacy.no_contacts 66, length.body 4 | 66/66 |
 | phone.plus91_dashes: a personal mobile, +91-98765-43210 | 66/66 | 100.0% | facts.numbers 66, privacy.no_contacts 66, length.body 3 | 66/66 |
 | phone.grouped_4_3_3: a personal mobile, +91 9876 543 210 | 66/66 | 100.0% | facts.numbers 66, privacy.no_contacts 66, length.body 4 | 66/66 |
@@ -100,10 +94,6 @@ The engine's own quality check failed 5 of these drafts: bhuvira/first_touch/hi 
 | tone.missed_paraphrase: a claim that a filing was not made, in other words | 66/66 | 100.0% | tone.no_missed_claim 66, length.body 4 | 4/66 |
 
 The last column checks the checker: Eval 1's grader, run on the same mutated drafts, caught 1229/1354 (90.8%), so its clean bill for the templates' facts is not for want of looking. Where it misses too, it is because the mutation is outside what it grades (tone in other words is checked only by a phrase list here as well).
-
-**Missed mutations (every draft):**
-
-- `amount.misattributed` (1): vaidhra/first_touch/en
 
 ## 3. Compliance gate
 
@@ -177,7 +167,7 @@ Canary personal data (fixtures/canaries.json) planted in the company record, the
 
 | Run | Links | Wrong links | Precision | Recall | Same pairs linked or sent to review | Seconds |
 |---|---|---|---|---|---|---|
-| exact_and_splink | 16 | 0 | 100.0% | 47.1% | 33/34 | 1.8 |
+| exact_and_splink | 16 | 0 | 100.0% | 47.1% | 33/34 | 1.7 |
 | exact_only | 16 | 0 | 100.0% | 47.1% | 23/34 | 0 |
 
 **Every miss (exact_and_splink):**
@@ -248,7 +238,7 @@ Canary personal data (fixtures/canaries.json) planted in the company record, the
 - **OpenAPI:** 21 paths (18 served by the engine): every engine path is served and every platform path has a client. Admin JSON routes not in the contract (informational): none.
 - **.env.example:** 82 variables documented, 69 read by the code. Read but not documented: none. Documented but never read by the code: EXPORT_S3_URI (read by ops/deploy scripts only).
 - **Config files:** 13 referenced, 11 parsed: all exist and parse.
-- **Test counts:** real 260 Node (static count of test( and it( calls in services/test/*.test.js) and 275 Python (pytest --collect-only (collects, runs nothing)). Quoted: README.md:13 node 261, python 275, total 536; docs/HANDOVER.md:155 node 261; docs/HANDOVER.md:156 python 275. All close.
+- **Test counts:** real 261 Node (static count of test( and it( calls in services/test/*.test.js) and 275 Python (pytest --collect-only (collects, runs nothing)). Quoted: README.md:13 node 262, python 275, total 537; docs/HANDOVER.md:155 node 262; docs/HANDOVER.md:156 python 275. All close.
 
 ## Limits of this run
 

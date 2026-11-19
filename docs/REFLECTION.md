@@ -36,7 +36,7 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
   | Eval | First run | After fixes |
   |---|---|---|
   | Facts in 71 drafts traced to their evidence | 100% | 100% |
-  | Quality check catches deliberately broken drafts (24 kinds) | 59.6% | 99.9% |
+  | Quality check catches deliberately broken drafts (24 kinds) | 59.6% | 100% |
   | Compliance gate decides 39 hard cases as expected | 36/39 | 39/39 |
   | Planted personal data reaching an outside service | 2 leaks (reply classification) | none |
   | Matching on 48 hard name pairs: wrong links; same-company pairs a person gets to see | 0; 29 of 34 | 0; 33 of 34 |
@@ -62,7 +62,7 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
   and the rules were tuned on them. The measure that counts is real replies labelled in the Admin
   inbox (`eval:replies --real`), which only exist after launch.
 - **No AI draft has been measured.** There is no LLM key yet, so every draft so far is a reviewed
-  template. The quality check's 99.9% is the protection; the AI drafter itself should be judged on
+  template. The quality check's 100% on the evals' broken drafts is the protection; the AI drafter itself should be judged on
   its first few hundred drafts before sample approval is switched on.
 - **Matching links only what it is sure of.** It never linked two different businesses in the eval,
   and links about half of the deliberately hard pairs on its own; the rest go to a person. Spelling
@@ -77,8 +77,7 @@ server. Those are listed, with how to check each, in `ops/WEEK4_ACTIONS.md`.
   from the templates, so it shows the current text). Both switches stay off until then.
 - **Two news sources do not answer.** Entrackr's feed address returned 404 and GDELT's robots.txt was
   unreachable from the laptop (owner action 27).
-- **Small things the evals still show.** One mutated draft in 1,333 (a real amount moved from one scheme
-  to another) still passes the check. Every template email carries the sender's website in its
+- **Small things the evals still show.** Every template email carries the sender's website in its
   signature, a third link the evals count; it is kept on purpose, so a founder can check who is writing,
   and the quality check allows that one link and no other.
 

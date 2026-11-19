@@ -167,6 +167,18 @@ describe('templates and the quality check', () => {
     assert.ok(failing(anonymous).includes('facts.company_named'));
   });
 
+  test('an amount beside a scheme must be that scheme\'s own', () => {
+    const { o } = setup();
+    const { pack } = buildEvidencePack(company(), leadDoc(), o.cfg, { asOf: '2026-11-20' });
+    pack.schemes = [{ id: 'a', name: 'UP prototype grant', verdict: 'check_required', benefit: 'Up to ₹10 lakh for a prototype.', missing: [] },
+      { id: 'b', name: 'Startup India Seed Fund Scheme', verdict: 'check_required', benefit: 'Up to ₹20 lakh as a grant.', missing: [] }];
+    const good = templateDraft(pack, { kind: 'first_touch', language: 'en', sender: { name: 'Gourav B' }, org: o.org });
+    const failing = (d) => qualityCheck(d, pack, ctx(o, 'first_touch', 'en')).checks.filter((c) => !c.ok).map((c) => c.id);
+    assert.deepEqual(failing(good), [], 'the template names both schemes in one sentence and passes');
+    assert.ok(!failing({ ...good, body: `${good.body}\nThe UP prototype grant brings up to ₹10 lakh.` }).includes('facts.amounts_match_schemes'));
+    assert.ok(failing({ ...good, body: `${good.body}\nThe UP prototype grant brings up to ₹20 lakh.` }).includes('facts.amounts_match_schemes'), "the other scheme's amount");
+  });
+
   test('catches wrong facts made of real pieces, links without http, other names, and pressure in other words', () => {
     const { o } = setup();
     const { pack } = buildEvidencePack(company(), leadDoc(), o.cfg, { asOf: '2026-11-20' });
