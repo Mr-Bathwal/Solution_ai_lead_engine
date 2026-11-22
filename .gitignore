@@ -53,3 +53,6 @@ design/
 # the built demo snapshot (ops/demo-site/build.mjs); rebuilt from the demo database, deployed, not kept
 ops/demo-site/out/
 .vercel/
+
+# team handouts (costs, owners, what to send): shared privately, not published
+docs/handouts/
